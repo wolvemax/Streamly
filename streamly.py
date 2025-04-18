@@ -1,345 +1,124 @@
-import openai
 import streamlit as st
-import logging
-from PIL import Image, ImageEnhance
+import unicodedata
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 import time
-import json
-import requests
-import base64
-from openai import OpenAI, OpenAIError
+import openai
+import gspread
+import re
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# ======= CONFIGURAÇÕES =======
+st.set_page_config(page_title="Bem vindo ao SIMULAMAX - Simulador Médico IA", page_icon="🩺", layout="wide")
 
-# Constants
-NUMBER_OF_MESSAGES_TO_DISPLAY = 20
-API_DOCS_URL = "https://docs.streamlit.io/library/api-reference"
+openai.api_key = st.secrets["openai"]["api_key"]
+ASSISTANT_ID = st.secrets["assistants"]["default"]
+ASSISTANT_PEDIATRIA_ID = st.secrets["assistants"]["pediatria"]
+ASSISTANT_EMERGENCIAS_ID = st.secrets["assistants"]["emergencias"]
 
-# Retrieve and validate API key
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", None)
-if not OPENAI_API_KEY:
-    st.error("Please add your OpenAI API key to the Streamlit secrets.toml file.")
-    st.stop()
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+google_creds = dict(st.secrets["google_credentials"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds, scope)
+client_gspread = gspread.authorize(creds)
 
-# Assign OpenAI API Key
-openai.api_key = OPENAI_API_KEY
-client = openai.OpenAI()
+# ======= GARANTIR ESTADO INICIAL =======
+REQUIRED_KEYS = ["logado", "thread_id", "historico", "consulta_finalizada", "prompt_inicial", "media_usuario", "run_em_andamento", "especialidade"]
+for key in REQUIRED_KEYS:
+    if key not in st.session_state:
+        st.session_state[key] = False if key == "logado" else None
 
-# Streamlit Page Configuration
-st.set_page_config(
-    page_title="Streamly - An Intelligent Streamlit Assistant",
-    page_icon="imgs/avatar_streamly.png",
-    layout="wide",
-    initial_sidebar_state="auto",
-    menu_items={
-        "Get help": "https://github.com/AdieLaine/Streamly",
-        "Report a bug": "https://github.com/AdieLaine/Streamly",
-        "About": """
-            ## Streamly Streamlit Assistant
-            ### Powered using GPT-4o-mini
+# ======= FUNÇÕES UTILITÁRIAS =======
+def remover_acentos(texto):
+    return ''.join((c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn'))
 
-            **GitHub**: https://github.com/AdieLaine/
+def normalizar_chave(chave):
+    return remover_acentos(chave.strip().lower())
 
-            The AI Assistant named, Streamly, aims to provide the latest updates from Streamlit,
-            generate code snippets for Streamlit widgets,
-            and answer questions about Streamlit's latest features, issues, and more.
-            Streamly has been trained on the latest Streamlit updates and documentation.
-        """
-    }
-)
+def normalizar(texto):
+    return ''.join((c for c in unicodedata.normalize('NFD', str(texto)) if unicodedata.category(c) != 'Mn')).lower().strip()
 
-# Streamlit Title
-st.title("Streamly Streamlit Assistant")
-
-def img_to_base64(image_path):
-    """Convert image to base64."""
+def validar_credenciais(usuario, senha):
     try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
+        sheet = client_gspread.open("LoginSimulador").sheet1
+        dados = sheet.get_all_records()
+        for linha in dados:
+            linha_normalizada = {normalizar_chave(k): v.strip() for k, v in linha.items() if isinstance(v, str)}
+            if linha_normalizada.get("usuario") == usuario and linha_normalizada.get("senha") == senha:
+                return True
+        return False
     except Exception as e:
-        logging.error(f"Error converting image to base64: {str(e)}")
-        return None
+        st.error(f"Erro ao validar login: {e}")
+        return False
 
-@st.cache_data(show_spinner=False)
-def long_running_task(duration):
-    """
-    Simulates a long-running operation.
-
-    Parameters:
-    - duration: int, duration of the task in seconds
-
-    Returns:
-    - str: Completion message
-    """
-    time.sleep(duration)
-    return "Long-running operation completed."
-
-@st.cache_data(show_spinner=False)
-def load_and_enhance_image(image_path, enhance=False):
-    """
-    Load and optionally enhance an image.
-
-    Parameters:
-    - image_path: str, path of the image
-    - enhance: bool, whether to enhance the image or not
-
-    Returns:
-    - img: PIL.Image.Image, (enhanced) image
-    """
-    img = Image.open(image_path)
-    if enhance:
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(1.8)
-    return img
-
-@st.cache_data(show_spinner=False)
-def load_streamlit_updates():
-    """Load the latest Streamlit updates from a local JSON file."""
+def contar_casos_usuario(usuario):
     try:
-        with open("data/streamlit_updates.json", "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        logging.error(f"Error loading JSON: {str(e)}")
-        return {}
+        sheet = client_gspread.open("LogsSimulador").worksheets()[0]
+        dados = sheet.get_all_records()
+        return sum(1 for linha in dados if str(linha.get("usuario", "")).strip().lower() == usuario.lower())
+    except:
+        return 0
 
-def get_streamlit_api_code_version():
-    """
-    Get the current Streamlit API code version from the Streamlit API documentation.
-
-    Returns:
-    - str: The current Streamlit API code version.
-    """
+def calcular_media_usuario(usuario):
     try:
-        response = requests.get(API_DOCS_URL)
-        if response.status_code == 200:
-            return "1.36"
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error connecting to the Streamlit API documentation: {str(e)}")
-    return None
+        sheet = client_gspread.open("notasSimulador").sheet1
+        dados = sheet.get_all_records()
+        notas = [float(l["nota"]) for l in dados if str(l.get("usuario", "")).strip().lower() == usuario.lower()]
+        return round(sum(notas) / len(notas), 2) if notas else 0.0
+    except:
+        return 0.0
 
-def display_streamlit_updates():
-    """Display the latest updates of the Streamlit."""
-    with st.expander("Streamlit 1.36 Announcement", expanded=False):
-        st.markdown("For more details on this version, check out the [Streamlit Forum post](https://docs.streamlit.io/library/changelog#version).")
+def registrar_caso(usuario, texto):
+    sheet = client_gspread.open("LogsSimulador").worksheet("Pagina1")
+    datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    resumo = texto[:300].replace("\\n", " ").strip()
+    assistente = st.session_state.get("especialidade", "desconhecido")
+    sheet.append_row([usuario, datahora, resumo, assistente], value_input_option="USER_ENTERED")
 
-def initialize_conversation():
-    """
-    Initialize the conversation history with system and assistant messages.
-
-    Returns:
-    - list: Initialized conversation history.
-    """
-    assistant_message = "Hello! I am Streamly. How can I assist you with Streamlit today?"
-
-    conversation_history = [
-        {"role": "system", "content": "You are Streamly, a specialized AI assistant trained in Streamlit."},
-        {"role": "system", "content": "Streamly, is powered by the OpenAI GPT-4o-mini model, released on July 18, 2024."},
-        {"role": "system", "content": "You are trained up to Streamlit Version 1.36.0, release on June 20, 2024."},
-        {"role": "system", "content": "Refer to conversation history to provide context to your response."},
-        {"role": "system", "content": "You were created by Madie Laine, an OpenAI Researcher."},
-        {"role": "assistant", "content": assistant_message}
-    ]
-    return conversation_history
-
-@st.cache_data(show_spinner=False)
-def get_latest_update_from_json(keyword, latest_updates):
-    """
-    Fetch the latest Streamlit update based on a keyword.
-
-    Parameters:
-    - keyword (str): The keyword to search for in the Streamlit updates.
-    - latest_updates (dict): The latest Streamlit updates data.
-
-    Returns:
-    - str: The latest update related to the keyword, or a message if no update is found.
-    """
-    for section in ["Highlights", "Notable Changes", "Other Changes"]:
-        for sub_key, sub_value in latest_updates.get(section, {}).items():
-            for key, value in sub_value.items():
-                if keyword.lower() in key.lower() or keyword.lower() in value.lower():
-                    return f"Section: {section}\nSub-Category: {sub_key}\n{key}: {value}"
-    return "No updates found for the specified keyword."
-
-def construct_formatted_message(latest_updates):
-    """
-    Construct formatted message for the latest updates.
-
-    Parameters:
-    - latest_updates (dict): The latest Streamlit updates data.
-
-    Returns:
-    - str: Formatted update messages.
-    """
-    formatted_message = []
-    highlights = latest_updates.get("Highlights", {})
-    version_info = highlights.get("Version 1.36", {})
-    if version_info:
-        description = version_info.get("Description", "No description available.")
-        formatted_message.append(f"- **Version 1.36**: {description}")
-
-    for category, updates in latest_updates.items():
-        formatted_message.append(f"**{category}**:")
-        for sub_key, sub_values in updates.items():
-            if sub_key != "Version 1.36":  # Skip the version info as it's already included
-                description = sub_values.get("Description", "No description available.")
-                documentation = sub_values.get("Documentation", "No documentation available.")
-                formatted_message.append(f"- **{sub_key}**: {description}")
-                formatted_message.append(f"  - **Documentation**: {documentation}")
-    return "\n".join(formatted_message)
-
-@st.cache_data(show_spinner=False)
-def on_chat_submit(chat_input, latest_updates):
-    """
-    Handle chat input submissions and interact with the OpenAI API.
-
-    Parameters:
-    - chat_input (str): The chat input from the user.
-    - latest_updates (dict): The latest Streamlit updates fetched from a JSON file or API.
-
-    Returns:
-    - None: Updates the chat history in Streamlit's session state.
-    """
-    user_input = chat_input.strip().lower()
-
-    if 'conversation_history' not in st.session_state:
-        st.session_state.conversation_history = initialize_conversation()
-
-    st.session_state.conversation_history.append({"role": "user", "content": user_input})
-
+def obter_ultimos_resumos(usuario, especialidade, n=10):
     try:
-        model_engine = "gpt-4o-mini"
-        assistant_reply = ""
+        sheet = client_gspread.open("LogsSimulador").worksheet("Pagina1")
+        dados = sheet.get_all_records()
+        historico = [linha for linha in dados if str(linha.get("usuario", "")).strip().lower() == usuario.lower() and str(linha.get("assistente", "")).lower() == especialidade.lower()]
+        ultimos = historico[-n:]
+        resumos = [linha.get("resumo", "")[:250] for linha in ultimos if linha.get("resumo", "")]
+        return resumos
+    except Exception as e:
+        st.warning(f"Erro ao obter resumos de casos anteriores: {e}")
+        return []
 
-        if "latest updates" in user_input:
-            assistant_reply = "Here are the latest highlights from Streamlit:\n"
-            highlights = latest_updates.get("Highlights", {})
-            if highlights:
-                for version, info in highlights.items():
-                    description = info.get("Description", "No description available.")
-                    assistant_reply += f"- **{version}**: {description}\n"
-            else:
-                assistant_reply = "No highlights found."
-        else:
-            response = client.chat.completions.create(
-                model=model_engine,
-                messages=st.session_state.conversation_history
-            )
-            assistant_reply = response.choices[0].message.content
+# ======= ESCOLHA DA ESPECIALIDADE =======
+especialidade = st.radio("Especialidade:", ["PSF", "Pediatria", "Emergências"])
+st.session_state["especialidade"] = especialidade
+assistant_id_usado = {
+    "PSF": ASSISTANT_ID,
+    "Pediatria": ASSISTANT_PEDIATRIA_ID,
+    "Emergências": ASSISTANT_EMERGENCIAS_ID
+}.get(especialidade, ASSISTANT_ID)
 
-        st.session_state.conversation_history.append({"role": "assistant", "content": assistant_reply})
-        st.session_state.history.append({"role": "user", "content": user_input})
-        st.session_state.history.append({"role": "assistant", "content": assistant_reply})
+# ======= INICIAR NOVA SIMULAÇÃO =======
+if st.button("➕ Nova Simulação"):
+    st.session_state.historico = ""
+    st.session_state.consulta_finalizada = False
+    st.session_state.thread_id = openai.beta.threads.create().id
 
-    except OpenAIError as e:
-        logging.error(f"Error occurred: {e}")
-        st.error(f"OpenAI Error: {str(e)}")
+    resumos = obter_ultimos_resumos(st.session_state.usuario, especialidade)
+    contexto_resumos = "\\n\\n".join(resumos) if resumos else "Nenhum caso anterior registrado."
 
-def initialize_session_state():
-    """Initialize session state variables."""
-    if "history" not in st.session_state:
-        st.session_state.history = []
-    if 'conversation_history' not in st.session_state:
-        st.session_state.conversation_history = []
+    prompt_simulacao = f\"""
+Casos anteriores do estudante {st.session_state.usuario} na especialidade {especialidade}:
 
-def main():
-    """
-    Display Streamlit updates and handle the chat interface.
-    """
-    initialize_session_state()
+{contexto_resumos}
 
-    if not st.session_state.history:
-        initial_bot_message = "Hello! How can I assist you with Streamlit today?"
-        st.session_state.history.append({"role": "assistant", "content": initial_bot_message})
-        st.session_state.conversation_history = initialize_conversation()
+Gere um novo caso clínico completamente diferente desses acima. Evite repetir os padrões anteriores de diagnóstico, queixa, conduta e estrutura.
+    \""".strip()
 
-    # Insert custom CSS for glowing effect
-    st.markdown(
-        """
-        <style>
-        .cover-glow {
-            width: 100%;
-            height: auto;
-            padding: 3px;
-            box-shadow: 
-                0 0 5px #330000,
-                0 0 10px #660000,
-                0 0 15px #990000,
-                0 0 20px #CC0000,
-                0 0 25px #FF0000,
-                0 0 30px #FF3333,
-                0 0 35px #FF6666;
-            position: relative;
-            z-index: -1;
-            border-radius: 45px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
+    run = openai.beta.threads.runs.create(
+        thread_id=st.session_state.thread_id,
+        assistant_id=assistant_id_usado,
+        instructions=prompt_simulacao
     )
-
-    # Load and display sidebar image
-    img_path = "imgs/sidebar_streamly_avatar.png"
-    img_base64 = img_to_base64(img_path)
-    if img_base64:
-        st.sidebar.markdown(
-            f'<img src="data:image/png;base64,{img_base64}" class="cover-glow">',
-            unsafe_allow_html=True,
-        )
-
-    st.sidebar.markdown("---")
-
-    # Sidebar for Mode Selection
-    mode = st.sidebar.radio("Select Mode:", options=["Latest Updates", "Chat with Streamly"], index=1)
-
-    st.sidebar.markdown("---")
-
-    # Display basic interactions
-    show_basic_info = st.sidebar.checkbox("Show Basic Interactions", value=True)
-    if show_basic_info:
-        st.sidebar.markdown("""
-        ### Basic Interactions
-        - **Ask About Streamlit**: Type your questions about Streamlit's latest updates, features, or issues.
-        - **Search for Code**: Use keywords like 'code example', 'syntax', or 'how-to' to get relevant code snippets.
-        - **Navigate Updates**: Switch to 'Updates' mode to browse the latest Streamlit updates in detail.
-        """)
-
-    # Display advanced interactions
-    show_advanced_info = st.sidebar.checkbox("Show Advanced Interactions", value=False)
-    if show_advanced_info:
-        st.sidebar.markdown("""
-        ### Advanced Interactions
-        - **Generate an App**: Use keywords like **generate app**, **create app** to get a basic Streamlit app code.
-        - **Code Explanation**: Ask for **code explanation**, **walk me through the code** to understand the underlying logic of Streamlit code snippets.
-        - **Project Analysis**: Use **analyze my project**, **technical feedback** to get insights and recommendations on your current Streamlit project.
-        - **Debug Assistance**: Use **debug this**, **fix this error** to get help with troubleshooting issues in your Streamlit app.
-        """)
-
-    st.sidebar.markdown("---")
-
-    # Load and display image with glowing effect
-    img_path = "imgs/stsidebarimg.png"
-    img_base64 = img_to_base64(img_path)
-    if img_base64:
-        st.sidebar.markdown(
-            f'<img src="data:image/png;base64,{img_base64}" class="cover-glow">',
-            unsafe_allow_html=True,
-        )
-
-    if mode == "Chat with Streamly":
-        chat_input = st.chat_input("Ask me about Streamlit updates:")
-        if chat_input:
-            latest_updates = load_streamlit_updates()
-            on_chat_submit(chat_input, latest_updates)
-
-        # Display chat history
-        for message in st.session_state.history[-NUMBER_OF_MESSAGES_TO_DISPLAY:]:
-            role = message["role"]
-            avatar_image = "imgs/avatar_streamly.png" if role == "assistant" else "imgs/stuser.png" if role == "user" else None
-            with st.chat_message(role, avatar=avatar_image):
-                st.write(message["content"])
-
-    else:
-        display_streamlit_updates()
-
-if __name__ == "__main__":
-    main()
+    with st.spinner("Gerando paciente..."):
+        while True:
+            status = openai.beta.threads.runs.retrieve(thread_id=st.session_state.thread_id, run_id=run.id)
+            if status.status == "completed":
+                break
+            time.sleep(1)
