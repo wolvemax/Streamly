@@ -22,7 +22,7 @@ client_gspread = gspread.authorize(creds)
 
 LOG_SHEET   = client_gspread.open("LogsSimulador").worksheet("Pagina1")
 NOTA_SHEET  = client_gspread.open("notasSimulador").sheet1
-LOGIN_SHEET = client_gspread.open("LoginSimulador").sheet1
+LOGIN_SHEET = client_gspread.open("LoginSimulador").Pagina1
 
 # ===== ESTADO =====
 DEFAULTS = {
