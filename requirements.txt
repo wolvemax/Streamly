@@ -1,6 +1,10 @@
-streamlit
-streamlit-chat
+PyQt5
+gspread
+oauth2client
+numpy
+sounddevice
+scipy
+qdarkstyle
+python-dotenv
 openai
-requests
-Image
-langchain
+streamlit-audiorecorder
