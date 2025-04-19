@@ -106,11 +106,41 @@ def renderizar_historico():
 
 # ===== LOGIN =====
 if not st.session_state.logado:
-    st.title("🔐 Simulamax - Simulador Médico – Login")
+    st.title("🔐 Simulamax - Simulador Médico – Login")
     with st.form("login"):
-        u=st.text_input("Usuário"); s=st.text_input("Senha",type="password")
-        if st.form_submit_button("Entrar") and validar_credenciais(u,s):
-            st.session_state.usuario=u; st.session_state.logado=True; st.rerun()
+        u = st.text_input("Usuário")
+        s = st.text_input("Senha", type="password")
+        submit = st.form_submit_button("Entrar")
+        
+        if submit:
+            try:
+                # Verificação inicial: existe planilha e tem dados?
+                dados = LOGIN_SHEET.get_all_records()
+                if not dados:
+                    st.error("⚠️ Nenhum dado encontrado na planilha de login.")
+                else:
+                    # Mostrar os dados para depuração
+                    st.info(f"🔍 Dados carregados: {len(dados)} registros")
+
+                    credencial_valida = False
+                    for linha in dados:
+                        usuario_planilha = linha.get("Usuario", "").strip().lower()
+                        senha_planilha = linha.get("Senha", "").strip()
+                        st.write(f"🔎 Verificando: {usuario_planilha} / {senha_planilha}")
+
+                        if usuario_planilha == u.lower() and senha_planilha == s:
+                            credencial_valida = True
+                            break
+
+                    if credencial_valida:
+                        st.success("✅ Login realizado com sucesso.")
+                        st.session_state.usuario = u
+                        st.session_state.logado = True
+                        st.rerun()
+                    else:
+                        st.warning("❌ Usuário ou senha inválidos. Verifique e tente novamente.")
+            except Exception as e:
+                st.error(f"Erro ao acessar planilha de login: {e}")
     st.stop()
 
 # ===== DASHBOARD =====
