@@ -154,7 +154,7 @@ if st.button("➕ Nova Simulação") and not st.session_state.run_em_andamento:
         "PSF": "Iniciar nova simulação clínica com paciente simulado. Apenas início da consulta com identificação e queixa principal.",
         "Pediatria": "Iniciar nova simulação clínica pediátrica com identificação e queixa principal.",
         "Emergências": (
-            "Iniciar uma simulação clínica realista de atendimento em pronto-socorro (emergência médica) de acordo com as instruçoes do assistente."
+            "Iniciar uma simulação clínica realista de atendimento em pronto-socorro (emergência médica)."
         )
     }
 
