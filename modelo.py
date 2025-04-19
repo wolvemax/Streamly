@@ -148,7 +148,7 @@ if st.button("➕ Nova Simulação") and not st.session_state.run_em_andamento:
     prompt_map = {
         "PSF": "Iniciar nova simulação clínica com paciente simulado. Apenas início da consulta com identificação e queixa principal.",
         "Pediatria": "Iniciar nova simulação clínica pediátrica com identificação e queixa principal.",
-        "Emergências": ""
+        "Emergências": "Iniciar simulação clínica realista de pronto-socorro. Comece com a identificação do paciente e a queixa principal."
     }
     prompt_inicial = prompt_map[esp]
     resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
@@ -203,11 +203,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             role="user",
             content=(
                 "Finalize completamente a simulação clínica. Gere um prontuário completo com estrutura clara e detalhada, incluindo:"
-                "\n1. Identificação do Paciente"
-                "\n2. Anamnese"
-                "\n3. Hipóteses Diagnósticas"
-                "\n4. Conduta"
-                "\n5. Feedback educacional"
+                "\n5. Feedback educacional, de acordo com o historico da conversa"
                 "\n\nFinalize com uma nota final objetiva no formato exato: Nota: X/10 (com número no lugar de X)."
             )
         )
