@@ -80,7 +80,7 @@ def obter_ultimos_resumos(user, especialidade, n=10):
     dados = LOG_SHEET.get_all_records()
     historico = [l for l in dados
                  if l.get("usuario", "").lower() == user.lower()
-                 and l.get("especialidade", "").lower() == especialidade.lower()]
+                 and l.get("assistente", "").lower() == especialidade.lower()]
     ult = historico[-n:]
     return [l.get("resumo", "")[:250] for l in ult]
 
@@ -155,6 +155,12 @@ esp = st.radio("Especialidade:", ["PSF","Pediatria","Emergências"])
 assistant_id = {"PSF":ASSISTANT_ID,"Pediatria":ASSISTANT_PEDIATRIA_ID,
                 "Emergências":ASSISTANT_EMERGENCIAS_ID}[esp]
 
+# ===== CONTAGEM DE CASOS POR ESPECIALIDADE =====
+dados = LOG_SHEET.get_all_records()
+usuario = st.session_state.usuario.lower()
+total_consultas = sum(1 for l in dados if l.get("usuario", "").lower() == usuario)
+total_especialidade = sum(1 for l in dados if l.get("usuario", "").lower() == usuario
+                          and l.get("assistente", "").strip().lower() == esp.lower())
 # -------- Quantidade de atendimentos por especialidade --------
 dados = LOG_SHEET.get_all_records()
 usuario = st.session_state.usuario.lower()
