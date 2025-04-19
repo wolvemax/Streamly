@@ -198,28 +198,15 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 
 # ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-if st.button("✅ Finalizar Consulta"):
-    instrucao_final = """
-Finalize esta simulação clínica analisando toda a conversa anterior entre médico e paciente. 
-Com base no histórico completo do thread, gere obrigatoriamente:
-
-1. O prontuário clínico completo do paciente com base nos dados fornecidos.
-2. Um feedback educacional estruturado com os seguintes tópicos:
-   - (1) Identificação
-   - (2) Anamnese
-   - (3) Hipóteses Diagnósticas
-   - (4) Conduta sugerida
-   - (5) Comentários educacionais com sugestões de melhoria
-3. Atribua uma **nota final objetiva no formato obrigatório**: `Nota: X/10`
-
-Todas as respostas devem ser escritas diretamente, sem repetir mensagens anteriores do paciente.
-"""
-    openai.beta.threads.messages.create(
-        thread_id=st.session_state.thread_id,
-        role="user",
-        content=instrucao_final.strip()
-    )
-    msgs=openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    if st.button("✅ Finalizar Consulta"):
+        openai.beta.threads.messages.create(
+            thread_id=st.session_state.thread_id,
+            role="user",
+            content=("Finalizar a simulação. Gere um prontuário completo, um feedback educacional estruturado por etapas (1) Identificação, 2) Anamnese, 3) Hipóteses Diagnósticas, 4) Conduta, 5) Nota Final), com justificativas e recomendações claras. Indique a nota final no formato: Nota: X/10."))
+        run=openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
+                                            assistant_id=assistant_id)
+        aguardar_run(st.session_state.thread_id)
+        msgs=openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
         for m in msgs:
             if m.role=="assistant":
                 resposta=m.content[0].text.value
