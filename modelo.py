@@ -164,11 +164,13 @@ if st.button("➕ Nova Simulação"):
             )
         except Exception as e:
             st.warning(f"⚠️ Erro ao enviar contexto: {e}")
-    run = openai.beta.threads.runs.create(
-        thread_id=st.session_state.thread_id,
-        assistant_id=assistant_id
-    )
-    aguardar_run(st.session_state.thread_id)
+    with st.spinner("🔄 Gerando nova simulação clínica..."):
+        with st.spinner("📄 Gerando o relatório final e nota..."):
+            run = openai.beta.threads.runs.create(
+                thread_id=st.session_state.thread_id,
+                assistant_id=assistant_id
+            )
+            aguardar_run(st.session_state.thread_id)
     mensagens = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
     for m in mensagens:
         if m.role == "assistant" and hasattr(m, "content") and m.content:
@@ -185,16 +187,17 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     renderizar_historico()
     pergunta = st.chat_input("Digite sua pergunta ou conduta:")
     if pergunta:
-        openai.beta.threads.messages.create(
-            thread_id=st.session_state.thread_id,
-            role="user",
-            content=pergunta
-        )
-        run = openai.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id,
-            assistant_id=assistant_id
-        )
-        aguardar_run(st.session_state.thread_id)
+        with st.spinner("💬 Respondendo sua pergunta..."):
+            openai.beta.threads.messages.create(
+                thread_id=st.session_state.thread_id,
+                role="user",
+                content=pergunta
+            )
+            run = openai.beta.threads.runs.create(
+                thread_id=st.session_state.thread_id,
+                assistant_id=assistant_id
+            )
+            aguardar_run(st.session_state.thread_id)
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
@@ -203,14 +206,15 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         openai.beta.threads.messages.create(
             thread_id=st.session_state.thread_id,
             role="user",
-            content=("Gerar o feedback educacional com fundamentos com diretrizes médicas, "
+            content=("Gerar prontuário completo, feedback educacional com fundamentos com diretrizes médicas, "
                      "notas ponderadas por etapa e nota final no formato **Nota: X/10**.")
         )
-        run = openai.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id,
-            assistant_id=assistant_id
-        )
-        aguardar_run(st.session_state.thread_id)
+        with st.spinner("📄 Gerando o relatório final e nota..."):
+            run = openai.beta.threads.runs.create(
+                thread_id=st.session_state.thread_id,
+                assistant_id=assistant_id
+            )
+            aguardar_run(st.session_state.thread_id)
         msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
 
         resposta_final = None
