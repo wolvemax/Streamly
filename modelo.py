@@ -188,35 +188,44 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 
 # ===== FINALIZAR CONSULTA =====
 if st.button("✅ Finalizar Consulta"):
-    # Envia comando de finalização
+    # Envia a instrução para a IA gerar o feedback e nota
     openai.beta.threads.messages.create(
         thread_id=st.session_state.thread_id,
         role="user",
-        content=("""
-Você é uma IA avaliadora de simulações clínicas. Analise toda a conversa deste thread (entre o médico e o paciente simulado).
-
-Gere um feedback educacional completo, estruturado por etapas:
-1) Identificação
-2) Anamnese
-3) Hipóteses Diagnósticas
-4) Conduta
-5) Nota Final (Nota: X/10)
-
-Explique os acertos e as falhas em cada etapa com base na interação entre médico e paciente.
-""")
+        content=(
+            "Você é uma IA avaliadora de simulações clínicas. Analise toda a conversa deste thread entre o médico e o paciente simulado.\n"
+            "Gere um feedback educacional completo, estruturado por etapas:\n"
+            "1) Identificação\n"
+            "2) Anamnese (QP, HDA, AP, AF, IS)\n"
+            "3) Hipóteses Diagnósticas\n"
+            "4) Conduta\n"
+            "5) Nota Final (escreva no formato: Nota: X/10)\n"
+            "Explique os acertos e falhas de cada etapa com base na interação. Seja claro, técnico e educativo."
+        )
     )
 
-    # Cria novo run após a mensagem de finalização
+    # Cria novo run
     run = openai.beta.threads.runs.create(
         thread_id=st.session_state.thread_id,
         assistant_id=assistant_id
     )
 
-    # Aguarda o processamento
-    aguardar_run(st.session_state.thread_id)
+    # Aguarda o run terminar
+    with st.spinner("Gerando avaliação da consulta..."):
+        while True:
+            status = openai.beta.threads.runs.retrieve(
+                thread_id=st.session_state.thread_id,
+                run_id=run.id
+            )
+            if status.status == "completed":
+                break
+            time.sleep(1)
 
-    # Pega apenas a NOVA resposta que vem DEPOIS da finalização
-    mensagens = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    # Agora pega a NOVA mensagem gerada como resposta do feedback
+    mensagens = openai.beta.threads.messages.list(
+        thread_id=st.session_state.thread_id
+    ).data
+
     mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at, reverse=True)
 
     for msg in mensagens_ordenadas:
@@ -226,10 +235,16 @@ Explique os acertos e as falhas em cada etapa com base na interação entre méd
                 st.markdown("### 📄 Resultado Final")
                 st.markdown(resposta)
             st.session_state.consulta_finalizada = True
-            registrar_caso(st.session_state.usuario, resposta,
-                           st.session_state.especialidade_atual)
+            registrar_caso(
+                st.session_state.usuario,
+                resposta,
+                st.session_state.especialidade_atual
+            )
             nota = extrair_nota(resposta)
             if nota is not None:
                 salvar_nota_usuario(st.session_state.usuario, nota)
-                st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
+                st.session_state.media_usuario = calcular_media_usuario(
+                    st.session_state.usuario
+                )
             break
+
