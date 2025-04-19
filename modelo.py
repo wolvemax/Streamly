@@ -235,16 +235,29 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         )
         aguardar_run(st.session_state.thread_id)
         msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-        for m in msgs:
-            if m.role == "assistant":
-                resposta = m.content[0].text.value
-                with st.chat_message("assistant", avatar="🧑‍⚕️"):
-                    st.markdown("### 📄 Resultado Final")
-                    st.markdown(resposta)
-                st.session_state.consulta_finalizada = True
-                registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
-                nota = extrair_nota(resposta)
-                if nota is not None:
-                    salvar_nota_usuario(st.session_state.usuario, nota)
-                    st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-                break
+resposta_final = None
+for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
+    if m.role == "assistant" and hasattr(m, "content") and m.content:
+        texto = m.content[0].text.value.strip()
+
+        # Critério: deve conter nota ou estrutura de feedback
+        if (
+            re.search(r"nota\s*[:\-]?\s*\d+(?:[.,]\d+)?", texto, re.I) or
+            "feedback educacional" in texto.lower() or
+            "análise da simulação" in texto.lower()
+        ):
+            resposta_final = texto
+            break
+
+if resposta_final:
+    with st.chat_message("assistant", avatar="🧑‍⚕️"):
+        st.markdown("### 📄 Resultado Final")
+        st.markdown(resposta_final)
+    st.session_state.consulta_finalizada = True
+    registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
+    nota = extrair_nota(resposta_final)
+    if nota is not None:
+        salvar_nota_usuario(st.session_state.usuario, nota)
+        st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
+else:
+    st.warning("⚠️ Não foi possível encontrar uma resposta final com nota. A IA pode não ter retornado o feedback completo ainda.")
