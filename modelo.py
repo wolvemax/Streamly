@@ -21,9 +21,20 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds, scope)
 client_gspread = gspread.authorize(creds)
 
 # ======= ESTADO INICIAL =======
-for key in ["logado", "thread_id", "historico", "consulta_finalizada", "prompt_inicial", "media_usuario", "especialidade"]:
-    if key not in st.session_state:
-        st.session_state[key] = None
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = None
+if "historico" not in st.session_state:
+    st.session_state.historico = ""
+if "consulta_finalizada" not in st.session_state:
+    st.session_state.consulta_finalizada = False
+if "prompt_inicial" not in st.session_state:
+    st.session_state.prompt_inicial = ""
+if "media_usuario" not in st.session_state:
+    st.session_state.media_usuario = 0.0
+if "especialidade" not in st.session_state:
+    st.session_state.especialidade = "PSF"
 
 # ======= FUNÇÕES =======
 def remover_acentos(texto):
