@@ -16,7 +16,7 @@ ASSISTANT_EMERGENCIAS_ID = st.secrets["assistants"]["emergencias"]
 # Google Sheets
 scope = ["https://spreadsheets.google.com/feeds",
          "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(
+creds  = ServiceAccountCredentials.from_json_keyfile_dict(
             dict(st.secrets["google_credentials"]), scope)
 client_gspread = gspread.authorize(creds)
 
@@ -50,7 +50,7 @@ def validar_credenciais(user, pwd):
             and linha.get("Senha","").strip()==pwd):
             return True
     return False
-  
+
 def contar_casos_usuario(user):
     dados = LOG_SHEET.get_all_records()
     return sum(1 for l in dados if l.get("usuario","").lower()==user.lower())
@@ -80,7 +80,7 @@ def obter_ultimos_resumos(user, especialidade, n=10):
     dados = LOG_SHEET.get_all_records()
     historico = [l for l in dados
                  if l.get("usuario", "").lower() == user.lower()
-                 and l.get("assistente", "").lower() == especialidade.lower()]
+                 and l.get("especialidade", "").lower() == especialidade.lower()]
     ult = historico[-n:]
     return [l.get("resumo", "")[:250] for l in ult]
 
@@ -114,10 +114,12 @@ if not st.session_state.logado:
         
         if submit:
             try:
+                # Verificação inicial: existe planilha e tem dados?
                 dados = LOGIN_SHEET.get_all_records()
                 if not dados:
                     st.error("⚠️ Nenhum dado encontrado na planilha de login.")
                 else:
+                    # Mostrar os dados para depuração
                     st.info(f"🔍 Dados carregados: {len(dados)} registros")
 
                     credencial_valida = False
@@ -150,10 +152,14 @@ if st.session_state.media_usuario==0:
     st.session_state.media_usuario=calcular_media_usuario(st.session_state.usuario)
 col2.metric("📊 Média global", st.session_state.media_usuario)
 
-# -------- Escolher especialidade --------
-esp = st.radio("Especialidade:", ["PSF","Pediatria","Emergências"])
-assistant_id = {"PSF":ASSISTANT_ID,"Pediatria":ASSISTANT_PEDIATRIA_ID,
-                "Emergências":ASSISTANT_EMERGENCIAS_ID}[esp]
+# ===== ESPECIALIDADE =====
+esp = st.radio("Especialidade:", ["PSF", "Pediatria", "Emergências"])
+assistant_id = {
+    "PSF": ASSISTANT_ID,
+    "Pediatria": ASSISTANT_PEDIATRIA_ID,
+    "Emergências": ASSISTANT_EMERGENCIAS_ID
+}[esp]
+st.session_state.especialidade_atual = esp
 
 # ===== CONTAGEM DE CASOS POR ESPECIALIDADE =====
 dados = LOG_SHEET.get_all_records()
@@ -161,12 +167,6 @@ usuario = st.session_state.usuario.lower()
 total_consultas = sum(1 for l in dados if l.get("usuario", "").lower() == usuario)
 total_especialidade = sum(1 for l in dados if l.get("usuario", "").lower() == usuario
                           and l.get("assistente", "").strip().lower() == esp.lower())
-# -------- Quantidade de atendimentos por especialidade --------
-dados = LOG_SHEET.get_all_records()
-usuario = st.session_state.usuario.lower()
-total_consultas = sum(1 for l in dados if l.get("usuario", "").lower() == usuario)
-total_especialidade = sum(1 for l in dados if l.get("usuario", "").lower() == usuario
-                          and l.get("especialidade", "").strip().lower() == esp.lower())
 
 if total_consultas > 0:
     percentual = (total_especialidade / total_consultas) * 100
@@ -243,7 +243,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
                     st.markdown("### 📄 Resultado Final"); st.markdown(resposta)
                 st.session_state.consulta_finalizada=True
                 registrar_caso(st.session_state.usuario, resposta,
-                               st.session_state.especialidade_atual)
+                               st.session_state.especialidade_atual)  # aqui usa a especialidade correta
                 nota=extrair_nota(resposta)
                 if nota is not None:
                     salvar_nota_usuario(st.session_state.usuario, nota)
