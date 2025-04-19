@@ -42,15 +42,16 @@ for k, v in DEFAULTS.items():
 def remover_acentos(txt):
     return ''.join(c for c in unicodedata.normalize('NFD', txt)
                    if unicodedata.category(c) != 'Mn')
-
+  
 def validar_credenciais(user, pwd):
     dados = LOGIN_SHEET.get_all_records()
     for linha in dados:
-        if (linha.get("Usuario","" ).strip().lower()==user.lower()
-            and linha.get("Senha",""  ).strip()==pwd):
+        linha_normalizada = {k.strip().lower(): str(v).strip() for k, v in linha.items()}
+        if (linha_normalizada.get("usuario", "").lower() == user.lower() and
+            linha_normalizada.get("senha", "") == pwd):
             return True
     return False
-
+  
 def contar_casos_usuario(user):
     dados = LOG_SHEET.get_all_records()
     return sum(1 for l in dados if l.get("usuario","" ).lower()==user.lower())
