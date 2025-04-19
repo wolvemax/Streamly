@@ -99,11 +99,19 @@ def obter_ultimos_resumos(usuario, especialidade, n=10):
 def renderizar_historico():
     mensagens = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
     for msg in sorted(mensagens, key=lambda x: x.created_at):
-        conteudo = msg.content[0].text.value
-        if "Iniciar nova simulação clínica" in conteudo or "Evite repetir os seguintes casos anteriores" in conteudo:
+        conteudo = msg.content[0].text.value.strip()
+
+        # ⛔️ Oculta mensagens do sistema ou instruções internas
+        if any(padrao in conteudo.lower() for padrao in [
+            "iniciar nova simulação clínica",
+            "evite repetir os seguintes casos",
+            "casos anteriores usados pelo estudante"
+        ]):
             continue
+            
         avatar = "👨‍⚕️" if msg.role == "user" else "🧑‍⚕️"
         hora = datetime.fromtimestamp(msg.created_at).strftime("%H:%M")
+
         with st.chat_message(msg.role, avatar=avatar):
             st.markdown(conteudo)
             st.caption(f"⏰ {hora}")
