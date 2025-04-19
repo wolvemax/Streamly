@@ -6,7 +6,7 @@ import time, re, openai, gspread
 
 # ===== CONFIGURAÇÕES =====
 st.set_page_config(page_title="Bem​‑vindo ao SIMULAMAX – Simulador Médico IA",
-                   page_icon="🩺", layout="wide")
+                   page_icon="🧪", layout="wide")
 
 openai.api_key = st.secrets["openai"]["api_key"]
 ASSISTANT_ID           = st.secrets["assistants"]["default"]
@@ -126,7 +126,7 @@ if not st.session_state.logado:
     st.stop()
 
 # ===== DASHBOARD =====
-st.title("🩺 Simulador Médico Interativo com IA")
+st.title("🧪 Simulador Médico Interativo com IA")
 st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
 col1,col2=st.columns(2)
 col1.metric("📋 Casos finalizados", contar_casos_usuario(st.session_state.usuario))
@@ -199,10 +199,10 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 # ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta"):
-        openai.beta.threads.messages.create(thread_id=st.session_state.thread_id,
+        openai.beta.threads.messages.create(
+            thread_id=st.session_state.thread_id,
             role="user",
-            content=("Você é uma IA avaliadora de simulações clínicas. Analise toda a conversa deste thread (entre o médico e o paciente simulado).\n"
-                     "Gere um feedback educacional completo, estruturado por etapas: 1) Identificação, 2) Anamnese, 3) Hipóteses Diagnósticas, 4) Conduta, 5) Nota Final (Nota: X/10)."))
+            content=("Finalizar a simulação. Gere um prontuário completo, um feedback educacional estruturado por etapas (1) Identificação, 2) Anamnese, 3) Hipóteses Diagnósticas, 4) Conduta, 5) Nota Final), com justificativas e recomendações claras. Indique a nota final no formato: Nota: X/10."))
         run=openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
                                             assistant_id=assistant_id)
         aguardar_run(st.session_state.thread_id)
