@@ -173,7 +173,7 @@ if st.button("➕ Nova Simulação"):
     prompt_map = {
         "PSF": "Iniciar nova simulação clínica com paciente simulado. Apenas início da consulta com identificação e queixa principal.",
         "Pediatria": "Iniciar nova simulação clínica pediátrica com identificação e queixa principal.",
-        "Emergências": "Iniciar uma simulação clínica de emergência realista com paciente agudo. Comece pela identificação e queixa principal."
+        "Emergências": "siga as instruçoes configuradas no assistente."
     }
     prompt_inicial = prompt_map[esp]
 
