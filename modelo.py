@@ -109,9 +109,17 @@ def renderizar_historico():
 if not st.session_state.logado:
     st.title("🔐 Simulamax - Simulador Médico – Login")
     with st.form("login"):
-        u=st.text_input("Usuário"); s=st.text_input("Senha",type="password")
-        if st.form_submit_button("Entrar") and validar_credenciais(u,s):
-            st.session_state.usuario=u; st.session_state.logado=True; st.rerun()
+        usuario = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password")
+        submitted = st.form_submit_button("Entrar")
+        if submitted:
+            if validar_credenciais(usuario, senha):
+                st.session_state.usuario = usuario
+                st.session_state.logado = True
+                st.session_state.media_usuario = calcular_media_usuario(usuario)
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
     st.stop()
 
 # ===== DASHBOARD =====
