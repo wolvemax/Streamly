@@ -5,7 +5,7 @@ from datetime import datetime
 import time, re, openai, gspread
 
 # ===== CONFIGURAÇÕES =====
-st.set_page_config(page_title="Bem‑vindo ao SIMULAMAX – Simulador Médico IA",
+st.set_page_config(page_title="Bem​‑vindo ao SIMULAMAX – Simulador Médico IA",
                    page_icon="🧪", layout="wide")
 
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -138,42 +138,64 @@ esp = st.radio("Especialidade:", ["PSF", "Pediatria", "Emergências"])
 assistant_id = {"PSF": ASSISTANT_ID, "Pediatria": ASSISTANT_PEDIATRIA_ID,
                 "Emergências": ASSISTANT_EMERGENCIAS_ID}[esp]
 
-# ===== NOVA SIMULAÇÃO =====
+# ===== NOVA SIMULAÇÃO SEGURA =====
 if st.button("➕ Nova Simulação") and not st.session_state.run_em_andamento:
     st.session_state.run_em_andamento = True
-    st.session_state.thread_id = openai.beta.threads.create().id
     st.session_state.consulta_finalizada = False
     st.session_state.especialidade_atual = esp
+
+    try:
+        st.session_state.thread_id = openai.beta.threads.create().id
+    except Exception as e:
+        st.error(f"❌ Erro ao criar thread da simulação: {e}")
+        st.stop()
 
     prompt_map = {
         "PSF": "Iniciar nova simulação clínica com paciente simulado. Apenas início da consulta com identificação e queixa principal.",
         "Pediatria": "Iniciar nova simulação clínica pediátrica com identificação e queixa principal.",
-        "Emergências": "Iniciar simulação clínica realista de pronto-socorro. Comece com a identificação do paciente e a queixa principal."
+        "Emergências": (
+            "Iniciar uma simulação clínica realista de atendimento em pronto-socorro (emergência médica). "
+            "Comece com a identificação do paciente e a queixa principal. Não avance além disso até que o aluno conduza a anamnese."
+        )
     }
-    prompt_inicial = prompt_map[esp]
+
+    prompt_inicial = prompt_map.get(esp, "").strip()
     resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
     contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
+
     if prompt_inicial:
-        prompt_inicial = f"{prompt_inicial}\n\nCasos anteriores do aluno:\n{contexto}"
-        openai.beta.threads.messages.create(
-            thread_id=st.session_state.thread_id,
-            role="user",
-            content=prompt_inicial
-        )
+        prompt_inicial_completo = f"{prompt_inicial}\n\nCasos anteriores do aluno:\n{contexto}"
+        try:
+            openai.beta.threads.messages.create(
+                thread_id=st.session_state.thread_id,
+                role="user",
+                content=prompt_inicial_completo.strip()
+            )
+        except Exception as e:
+            st.error(f"❌ Erro ao enviar prompt inicial: {e}")
+            st.stop()
+    else:
+        st.warning("⚠️ Nenhum prompt inicial definido para esta especialidade.")
+        st.stop()
 
     with st.spinner("🧠 Gerando nova simulação clínica..."):
-        run = openai.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id,
-            assistant_id=assistant_id
-        )
-        aguardar_run(st.session_state.thread_id)
-        mensagens = openai.beta.threads.messages.list(
-            thread_id=st.session_state.thread_id
-        ).data
-        for m in mensagens:
-            if m.role == "assistant" and hasattr(m, "content") and m.content:
-                st.session_state.historico = m.content[0].text.value
-                break
+        try:
+            run = openai.beta.threads.runs.create(
+                thread_id=st.session_state.thread_id,
+                assistant_id=assistant_id
+            )
+            aguardar_run(st.session_state.thread_id)
+            mensagens = openai.beta.threads.messages.list(
+                thread_id=st.session_state.thread_id
+            ).data
+            for m in mensagens:
+                if m.role == "assistant" and hasattr(m, "content") and m.content:
+                    st.session_state.historico = m.content[0].text.value
+                    break
+        except Exception as e:
+            st.error(f"❌ Erro ao executar a IA: {e}")
+            st.stop()
+
     st.session_state.run_em_andamento = False
     st.rerun()
 
@@ -193,63 +215,3 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
                                               assistant_id=assistant_id)
         aguardar_run(st.session_state.thread_id)
         st.rerun()
-
-# ===== FINALIZAR CONSULTA =====
-if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-    if st.button("✅ Finalizar Consulta"):
-        # Enviar a mensagem de finalização à IA
-        openai.beta.threads.messages.create(
-            thread_id=st.session_state.thread_id,
-            role="user",
-            content=(
-                "Finalize completamente a simulação clínica. Gere um prontuário completo com estrutura clara e detalhada, incluindo:"
-                "\n5. Feedback educacional, de acordo com o historico da conversa"
-                "\n\nFinalize com uma nota final objetiva no formato exato: Nota: X/10 (com número no lugar de X)."
-            )
-        )
-
-        # Criar e aguardar a execução do run
-        run = openai.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id,
-            assistant_id=assistant_id
-        )
-        aguardar_run(st.session_state.thread_id)
-
-        # Buscar as mensagens da thread
-        msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-
-        resposta_final = None
-        for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
-            if m.role == "assistant" and hasattr(m, "content") and m.content:
-                texto = m.content[0].text.value
-
-                # Debug opcional — exibe todas as mensagens da IA
-                # st.write("🧠 RESPOSTA DETECTADA:")
-                # st.code(texto)
-
-                # Verificação mais robusta de resposta final
-                if (
-                    re.search(r"nota\s*[:\-]?\s*\d+(?:[.,]\d+)?", texto, re.I)
-                    and "anamnese" in texto.lower()
-                    and "identificação" in texto.lower()
-                    and "hipótes" in texto.lower()  # cobre "hipóteses diagnósticas"
-                    and "conduta" in texto.lower()
-                ):
-                    resposta_final = texto
-                    break
-
-        # Exibir e salvar a resposta final se válida
-        if resposta_final:
-            with st.chat_message("assistant", avatar="🧑‍⚕️"):
-                st.markdown("### 📄 Resultado Final")
-                st.markdown(resposta_final)
-
-            st.session_state.consulta_finalizada = True
-            registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
-
-            nota = extrair_nota(resposta_final)
-            if nota is not None:
-                salvar_nota_usuario(st.session_state.usuario, nota)
-                st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-        else:
-            st.warning("⚠️ Não foi possível localizar uma resposta completa com a nota final. Tente novamente ou revise o histórico.")
