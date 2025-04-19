@@ -24,7 +24,7 @@ client_gspread = gspread.authorize(creds)
 try:
     planilha_logs = client_gspread.open("LogsSimulador")
     LOG_SHEET = planilha_logs.worksheet("Pagina1")  # ajuste se for "Página1"
-    st.write("✅ LogsSimulador carregado. Abas:", [ws.title for ws in planilha_logs.worksheets()])
+    # st.write("✅ LogsSimulador carregado. Abas:", [ws.title for ws in planilha_logs.worksheets()]))
 except Exception as e:
     st.error(f"❌ Erro ao acessar planilha LogsSimulador: {e}")
     st.stop()
