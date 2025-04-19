@@ -104,6 +104,15 @@ def renderizar_historico():
             st.markdown(texto)
             st.caption(f"⏰ {hora}")
 
+def contar_casos_usuario(usuario):
+    try:
+        sheet = client_gspread.open("LogsSimulador").worksheet("Pagina1")
+        dados = sheet.get_all_records()
+        return sum(1 for linha in dados if str(linha.get("usuario", "")).strip().lower() == usuario.lower())
+    except Exception as e:
+        st.warning(f"Erro ao contar casos: {e}")
+        return 0
+
 def aguardar_fim_run(thread_id, run_id):
     while True:
         status = openai.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run_id)
