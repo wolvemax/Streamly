@@ -46,8 +46,9 @@ def remover_acentos(txt):
 def validar_credenciais(user, pwd):
     dados = LOGIN_SHEET.get_all_records()
     for linha in dados:
-        if (linha.get("Usuario","" ).strip().lower()==user.lower()
-            and linha.get("Senha",""  ).strip()==pwd):
+        chaves = {k.strip().lower(): v for k, v in linha.items()}
+        if (chaves.get("usuario", "").strip().lower() == user.strip().lower() and
+            chaves.get("senha", "").strip() == pwd.strip()):
             return True
     return False
 
