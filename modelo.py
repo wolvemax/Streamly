@@ -1,3 +1,6 @@
+from pathlib import Path
+
+codigo_atualizado = """
 import streamlit as st
 import unicodedata
 from oauth2client.service_account import ServiceAccountCredentials
@@ -103,7 +106,7 @@ if st.button("➕ Nova Simulação"):
     resumos = obter_ultimos_resumos(st.session_state.usuario, especialidade)
     contexto_resumos = "\\n\\n".join(resumos) if resumos else "Nenhum caso anterior registrado."
 
-    prompt_simulacao = f\"""
+    prompt_simulacao = f"""
 Casos anteriores do estudante {st.session_state.usuario} na especialidade {especialidade}:
 
 {contexto_resumos}
