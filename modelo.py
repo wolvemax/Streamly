@@ -42,16 +42,15 @@ for k, v in DEFAULTS.items():
 def remover_acentos(txt):
     return ''.join(c for c in unicodedata.normalize('NFD', txt)
                    if unicodedata.category(c) != 'Mn')
-  
+
 def validar_credenciais(user, pwd):
     dados = LOGIN_SHEET.get_all_records()
     for linha in dados:
-        linha_normalizada = {k.strip().lower(): str(v).strip() for k, v in linha.items()}
-        if (linha_normalizada.get("usuario", "").lower() == user.lower() and
-            linha_normalizada.get("senha", "") == pwd):
+        if (linha.get("Usuario","" ).strip().lower()==user.lower()
+            and linha.get("Senha",""  ).strip()==pwd):
             return True
     return False
-  
+
 def contar_casos_usuario(user):
     dados = LOG_SHEET.get_all_records()
     return sum(1 for l in dados if l.get("usuario","" ).lower()==user.lower())
@@ -143,7 +142,7 @@ assistant_id = {"PSF":ASSISTANT_ID,"Pediatria":ASSISTANT_PEDIATRIA_ID,
 if st.button("➕ Nova Simulação"):
     st.session_state.thread_id=None
     st.session_state.consulta_finalizada=False
-    st.session_state.especialidade_atual = esp         # << fixa!
+    st.session_state.especialidade_atual = esp
     st.session_state.thread_id=openai.beta.threads.create().id
 
     prompt_map={
@@ -161,13 +160,14 @@ if st.button("➕ Nova Simulação"):
         openai.beta.threads.messages.create(thread_id=st.session_state.thread_id,
             role="user", content=prompt_inicial)
 
-    run=openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
-                                        assistant_id=assistant_id)
-    aguardar_run(st.session_state.thread_id)
-    msgs=openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-    for m in msgs:
-        if m.role=="assistant" and hasattr(m, "content") and m.content:
-            st.session_state.historico=m.content[0].text.value; break
+    with st.spinner("🧠 Gerando nova simulação clínica..."):
+        run=openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
+                                            assistant_id=assistant_id)
+        aguardar_run(st.session_state.thread_id)
+        msgs=openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+        for m in msgs:
+            if m.role=="assistant" and hasattr(m, "content") and m.content:
+                st.session_state.historico=m.content[0].text.value; break
     st.rerun()
 
 # ===== HISTÓRICO DO CASO =====
@@ -187,64 +187,56 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
-if st.button("✅ Finalizar Consulta"):
-    # Envia a instrução para a IA gerar o feedback e nota
-    openai.beta.threads.messages.create(
-        thread_id=st.session_state.thread_id,
-        role="user",
-        content=(
-            "Você é uma IA avaliadora de simulações clínicas. Analise toda a conversa deste thread entre o médico e o paciente simulado.\n"
-            "Gere um feedback educacional completo, estruturado por etapas:\n"
-            "1) Identificação\n"
-            "2) Anamnese (QP, HDA, AP, AF, IS)\n"
-            "3) Hipóteses Diagnósticas\n"
-            "4) Conduta\n"
-            "5) Nota Final (escreva no formato: Nota: X/10)\n"
-            "Explique os acertos e falhas de cada etapa com base na interação. Seja claro, técnico e educativo."
+if st.session_state.thread_id and not st.session_state.consulta_finalizada:
+    if st.button("✅ Finalizar Consulta"):
+        openai.beta.threads.messages.create(
+            thread_id=st.session_state.thread_id,
+            role="user",
+            content=("Você é uma IA avaliadora de simulações clínicas. Analise toda a conversa deste thread entre o médico e o paciente simulado.\n"
+                     "Gere um feedback educacional completo, estruturado por etapas:\n"
+                     "1) Identificação\n"
+                     "2) Anamnese (QP, HDA, AP, AF, IS)\n"
+                     "3) Hipóteses Diagnósticas\n"
+                     "4) Conduta\n"
+                     "5) Nota Final (escreva no formato: Nota: X/10)\n"
+                     "Explique os acertos e falhas de cada etapa com base na interação. Seja claro, técnico e educativo.")
         )
-    )
 
-    # Cria novo run
-    run = openai.beta.threads.runs.create(
-        thread_id=st.session_state.thread_id,
-        assistant_id=assistant_id
-    )
+        run=openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
+                                            assistant_id=assistant_id)
 
-    # Aguarda o run terminar
-    with st.spinner("Gerando avaliação da consulta..."):
-        while True:
-            status = openai.beta.threads.runs.retrieve(
-                thread_id=st.session_state.thread_id,
-                run_id=run.id
-            )
-            if status.status == "completed":
-                break
-            time.sleep(1)
-
-    # Agora pega a NOVA mensagem gerada como resposta do feedback
-    mensagens = openai.beta.threads.messages.list(
-        thread_id=st.session_state.thread_id
-    ).data
-
-    mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at, reverse=True)
-
-    for msg in mensagens_ordenadas:
-        if msg.role == "assistant" and hasattr(msg, "content") and msg.content:
-            resposta = msg.content[0].text.value
-            with st.chat_message("assistant", avatar="🧑‍⚕️"):
-                st.markdown("### 📄 Resultado Final")
-                st.markdown(resposta)
-            st.session_state.consulta_finalizada = True
-            registrar_caso(
-                st.session_state.usuario,
-                resposta,
-                st.session_state.especialidade_atual
-            )
-            nota = extrair_nota(resposta)
-            if nota is not None:
-                salvar_nota_usuario(st.session_state.usuario, nota)
-                st.session_state.media_usuario = calcular_media_usuario(
-                    st.session_state.usuario
+        with st.spinner("Gerando avaliação da consulta..."):
+            while True:
+                status = openai.beta.threads.runs.retrieve(
+                    thread_id=st.session_state.thread_id,
+                    run_id=run.id
                 )
-            break
+                if status.status == "completed":
+                    break
+                time.sleep(1)
 
+        mensagens = openai.beta.threads.messages.list(
+            thread_id=st.session_state.thread_id
+        ).data
+
+        mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at, reverse=True)
+
+        for msg in mensagens_ordenadas:
+            if msg.role == "assistant" and hasattr(msg, "content") and msg.content:
+                resposta = msg.content[0].text.value
+                with st.chat_message("assistant", avatar="🧑‍⚕️"):
+                    st.markdown("### 📄 Resultado Final")
+                    st.markdown(resposta)
+                st.session_state.consulta_finalizada = True
+                registrar_caso(
+                    st.session_state.usuario,
+                    resposta,
+                    st.session_state.especialidade_atual
+                )
+                nota = extrair_nota(resposta)
+                if nota is not None:
+                    salvar_nota_usuario(st.session_state.usuario, nota)
+                    st.session_state.media_usuario = calcular_media_usuario(
+                        st.session_state.usuario
+                    )
+                break
