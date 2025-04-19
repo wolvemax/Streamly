@@ -5,7 +5,7 @@ from datetime import datetime
 import time, re, openai, gspread
 
 # ===== CONFIGURAÇÕES =====
-st.set_page_config(page_title="Bem‑vindo ao SIMULAMAX – Simulador Médico IA",
+st.set_page_config(page_title="Bem​‑vindo ao SIMULAMAX – Simulador Médico IA",
                    page_icon="🩺", layout="wide")
 
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -46,9 +46,8 @@ def remover_acentos(txt):
 def validar_credenciais(user, pwd):
     dados = LOGIN_SHEET.get_all_records()
     for linha in dados:
-        chaves = {k.strip().lower(): v for k, v in linha.items()}
-        if (chaves.get("usuario", "").strip().lower() == user.strip().lower() and
-            chaves.get("senha", "").strip() == pwd.strip()):
+        if (linha.get("Usuario","" ).strip().lower()==user.lower()
+            and linha.get("Senha",""  ).strip()==pwd):
             return True
     return False
 
@@ -97,6 +96,8 @@ def renderizar_historico():
     msgs=openai.beta.threads.messages.list(
             thread_id=st.session_state.thread_id).data
     for m in sorted(msgs, key=lambda x:x.created_at):
+        if not hasattr(m, "content") or not m.content:
+            continue
         conteudo = m.content[0].text.value
         if any(p in conteudo.lower() for p in ["iniciar nova simula", "evite repetir", "casos anteriores"]):
             continue
@@ -144,14 +145,12 @@ if st.button("➕ Nova Simulação"):
     st.session_state.especialidade_atual = esp         # << fixa!
     st.session_state.thread_id=openai.beta.threads.create().id
 
-    # ---- prompt inicial dinâmico ----
     prompt_map={
         "PSF":"Iniciar nova simulação clínica com paciente simulado. Apenas início da consulta com identificação e queixa principal.",
         "Pediatria":"Iniciar nova simulação clínica pediátrica com identificação e queixa principal.",
         "Emergências":""}
     prompt_inicial = prompt_map[esp]
 
-    # Contexto anti‑repetição
     resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
     contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
     if prompt_inicial:
@@ -166,7 +165,7 @@ if st.button("➕ Nova Simulação"):
     aguardar_run(st.session_state.thread_id)
     msgs=openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
     for m in msgs:
-        if m.role=="assistant":
+        if m.role=="assistant" and hasattr(m, "content") and m.content:
             st.session_state.historico=m.content[0].text.value; break
     st.rerun()
 
@@ -199,7 +198,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         aguardar_run(st.session_state.thread_id)
         msgs=openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
         for m in msgs:
-            if m.role=="assistant":
+            if m.role=="assistant" and hasattr(m, "content") and m.content:
                 resposta=m.content[0].text.value
                 with st.chat_message("assistant", avatar="🧑‍⚕️"):
                     st.markdown("### 📄 Resultado Final"); st.markdown(resposta)
