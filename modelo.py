@@ -176,4 +176,48 @@ if st.button("➕ Nova Simulação") and not st.session_state.run_em_andamento:
                 st.session_state.historico = m.content[0].text.value
                 break
     st.session_state.run_em_andamento = False
-    st.rerun()
+    st.experimental_rerun()
+
+# Renderizar histórico da nova simulação
+if st.session_state.historico and not st.session_state.consulta_finalizada:
+    st.markdown("### 👤 Identificação do Paciente")
+    st.info(st.session_state.historico)
+
+# ===== HISTÓRICO DO CASO =====
+if st.session_state.thread_id and not st.session_state.consulta_finalizada:
+    renderizar_historico()
+    pergunta=st.chat_input("Digite sua pergunta ou conduta:")
+    if pergunta:
+        openai.beta.threads.messages.create(thread_id=st.session_state.thread_id,
+                                            role="user", content=pergunta)
+        run=openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
+                                            assistant_id=assistant_id)
+        aguardar_run(st.session_state.thread_id)
+        st.rerun()
+
+# ===== FINALIZAR CONSULTA =====
+if st.session_state.thread_id and not st.session_state.consulta_finalizada:
+    if st.button("✅ Finalizar Consulta"):
+        openai.beta.threads.messages.create(thread_id=st.session_state.thread_id,
+            role="user",
+            content=("Você é uma IA avaliadora de simulações clínicas. Analise toda a conversa deste thread (entre o médico e o paciente simulado).\n"
+                     "Gere um feedback educacional completo, estruturado por etapas: 1) Identificação, 2) Anamnese, 3) Hipóteses Diagnósticas, 4) Conduta, 5) Nota Final (Nota: X/10)."))
+        run=openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
+                                            assistant_id=assistant_id)
+        aguardar_run(st.session_state.thread_id)
+        msgs=openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+        for m in msgs:
+            if m.role=="assistant":
+                resposta=m.content[0].text.value
+                with st.chat_message("assistant", avatar="🧑‍⚕️"):
+                    st.markdown("### 📄 Resultado Final")
+                    st.markdown(resposta)
+                st.session_state.consulta_finalizada=True
+                registrar_caso(st.session_state.usuario, resposta,
+                               st.session_state.especialidade_atual)
+                nota=extrair_nota(resposta)
+                if nota is not None:
+                    salvar_nota_usuario(st.session_state.usuario, nota)
+                    st.session_state.media_usuario=calcular_media_usuario(
+                                                    st.session_state.usuario)
+                break
