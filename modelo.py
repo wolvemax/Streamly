@@ -46,8 +46,9 @@ def remover_acentos(txt):
 def validar_credenciais(user, pwd):
     dados = LOGIN_SHEET.get_all_records()
     for linha in dados:
-        if (linha.get("Usuario","" ).strip().lower()==user.lower()
-            and linha.get("Senha",""  ).strip()==pwd):
+        chaves = {k.strip().lower(): v for k, v in linha.items()}
+        if (chaves.get("usuario", "").strip().lower() == user.strip().lower() and
+            chaves.get("senha", "").strip() == pwd.strip()):
             return True
     return False
 
@@ -176,7 +177,7 @@ if st.button("➕ Nova Simulação") and not st.session_state.run_em_andamento:
                 st.session_state.historico = m.content[0].text.value
                 break
     st.session_state.run_em_andamento = False
-    st.experimental_rerun()
+    st.rerun()
 
 # Renderizar histórico da nova simulação
 if st.session_state.historico and not st.session_state.consulta_finalizada:
