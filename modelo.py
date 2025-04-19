@@ -50,7 +50,7 @@ def validar_credenciais(user, pwd):
             and linha.get("Senha","").strip()==pwd):
             return True
     return False
-
+  
 def contar_casos_usuario(user):
     dados = LOG_SHEET.get_all_records()
     return sum(1 for l in dados if l.get("usuario","").lower()==user.lower())
