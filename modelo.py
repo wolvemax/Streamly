@@ -20,9 +20,26 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
             dict(st.secrets["google_credentials"]), scope)
 client_gspread = gspread.authorize(creds)
 
-LOG_SHEET   = client_gspread.open("LogsSimulador").worksheet("Pagina1")
-NOTA_SHEET  = client_gspread.open("notasSimulador").sheet1
-LOGIN_SHEET = client_gspread.open("LoginSimulador").sheet1
+# ===== PLANILHAS SEGURAS =====
+try:
+    planilha_logs = client_gspread.open("LogsSimulador")
+    LOG_SHEET = planilha_logs.worksheet("Pagina1")  # ajuste se for "Página1"
+    st.write("✅ LogsSimulador carregado. Abas:", [ws.title for ws in planilha_logs.worksheets()])
+except Exception as e:
+    st.error(f"❌ Erro ao acessar planilha LogsSimulador: {e}")
+    st.stop()
+
+try:
+    NOTA_SHEET = client_gspread.open("notasSimulador").sheet1
+except Exception as e:
+    st.error(f"❌ Erro ao acessar planilha notasSimulador: {e}")
+    st.stop()
+
+try:
+    LOGIN_SHEET = client_gspread.open("LoginSimulador").sheet1
+except Exception as e:
+    st.error(f"❌ Erro ao acessar planilha LoginSimulador: {e}")
+    st.stop()
 
 # ===== ESTADO =====
 DEFAULTS = {
@@ -106,111 +123,3 @@ def renderizar_historico():
         with st.chat_message(m.role, avatar=avatar):
             st.markdown(conteudo)
             st.caption(f"⏰ {hora}")
-
-# ===== LOGIN =====
-if not st.session_state.logado:
-    st.title("🔐 Simulamax - Simulador Médico – Login")
-    with st.form("login"):
-        usuario = st.text_input("Usuário")
-        senha = st.text_input("Senha", type="password")
-        submitted = st.form_submit_button("Entrar")
-        if submitted:
-            if validar_credenciais(usuario, senha):
-                st.session_state.usuario = usuario
-                st.session_state.logado = True
-                st.session_state.media_usuario = calcular_media_usuario(usuario)
-                st.rerun()
-            else:
-                st.error("Usuário ou senha inválidos.")
-    st.stop()
-
-# ===== DASHBOARD =====
-st.title("🧪 Simulador Médico Interativo com IA")
-st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
-col1, col2 = st.columns(2)
-col1.metric("📋 Casos finalizados", contar_casos_usuario(st.session_state.usuario))
-if st.session_state.media_usuario == 0:
-    st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-col2.metric("📊 Média global", st.session_state.media_usuario)
-
-# -------- Escolher especialidade --------
-esp = st.radio("Especialidade:", ["PSF", "Pediatria", "Emergências"])
-assistant_id = {"PSF": ASSISTANT_ID, "Pediatria": ASSISTANT_PEDIATRIA_ID,
-                "Emergências": ASSISTANT_EMERGENCIAS_ID}[esp]
-
-# ===== NOVA SIMULAÇÃO SEGURA =====
-if st.button("➕ Nova Simulação") and not st.session_state.run_em_andamento:
-    st.session_state.run_em_andamento = True
-    st.session_state.consulta_finalizada = False
-    st.session_state.especialidade_atual = esp
-
-    try:
-        st.session_state.thread_id = openai.beta.threads.create().id
-    except Exception as e:
-        st.error(f"❌ Erro ao criar thread da simulação: {e}")
-        st.stop()
-
-    prompt_map = {
-        "PSF": "Iniciar nova simulação clínica com paciente simulado. Apenas início da consulta com identificação e queixa principal.",
-        "Pediatria": "Iniciar nova simulação clínica pediátrica com identificação e queixa principal.",
-        "Emergências": (
-            "Iniciar uma simulação clínica realista de atendimento em pronto-socorro (emergência médica)."
-        )
-    }
-
-    prompt_inicial = prompt_map.get(esp, "").strip()
-    resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
-    contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
-
-    if prompt_inicial:
-        prompt_inicial_completo = f"{prompt_inicial}\n\nCasos anteriores do aluno:\n{contexto}"
-        try:
-            openai.beta.threads.messages.create(
-                thread_id=st.session_state.thread_id,
-                role="user",
-                content=prompt_inicial_completo.strip()
-            )
-        except Exception as e:
-            st.error(f"❌ Erro ao enviar prompt inicial: {e}")
-            st.stop()
-    else:
-        st.warning("⚠️ Nenhum prompt inicial definido para esta especialidade.")
-        st.stop()
-
-    with st.spinner("🧠 Gerando nova simulação clínica..."):
-        try:
-            run = openai.beta.threads.runs.create(
-                thread_id=st.session_state.thread_id,
-                assistant_id=assistant_id
-            )
-            aguardar_run(st.session_state.thread_id)
-            mensagens = openai.beta.threads.messages.list(
-                thread_id=st.session_state.thread_id
-            ).data
-            for m in mensagens:
-                if m.role == "assistant" and hasattr(m, "content") and m.content:
-                    st.session_state.historico = m.content[0].text.value
-                    break
-        except Exception as e:
-            st.error(f"❌ Erro ao executar a IA: {e}")
-            st.stop()
-
-    st.session_state.run_em_andamento = False
-    st.rerun()
-
-# Renderizar histórico da nova simulação
-if st.session_state.historico and not st.session_state.consulta_finalizada:
-    st.markdown("### 👤 Identificação do Paciente")
-    st.info(st.session_state.historico)
-
-# ===== HISTÓRICO DO CASO =====
-if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-    renderizar_historico()
-    pergunta = st.chat_input("Digite sua pergunta ou conduta:")
-    if pergunta:
-        openai.beta.threads.messages.create(thread_id=st.session_state.thread_id,
-                                            role="user", content=pergunta)
-        run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
-                                              assistant_id=assistant_id)
-        aguardar_run(st.session_state.thread_id)
-        st.rerun()
