@@ -195,42 +195,54 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
-# ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta"):
-        # Enviar mensagem solicitando o prontuário completo e a nota final
+        # Enviar a mensagem de finalização à IA
         openai.beta.threads.messages.create(
             thread_id=st.session_state.thread_id,
             role="user",
             content=(
-                "Finalizar a simulação. Gere um prontuário completo, um feedback educacional estruturado por etapas "
-                "(1) Identificação, 2) Anamnese, 3) Hipóteses Diagnósticas, 4) Conduta, 5) Nota Final), com justificativas e "
-                "recomendações claras. Indique a nota final no formato: Nota: X/10."
+                "Finalize completamente a simulação clínica. Gere um prontuário completo com estrutura clara e detalhada, incluindo:"
+                "\n1. Identificação do Paciente"
+                "\n2. Anamnese"
+                "\n3. Hipóteses Diagnósticas"
+                "\n4. Conduta"
+                "\n5. Feedback educacional"
+                "\n\nFinalize com uma nota final objetiva no formato exato: Nota: X/10 (com número no lugar de X)."
             )
         )
 
-        # Criar o run
+        # Criar e aguardar a execução do run
         run = openai.beta.threads.runs.create(
             thread_id=st.session_state.thread_id,
             assistant_id=assistant_id
         )
-
-        # Esperar a resposta estar pronta
         aguardar_run(st.session_state.thread_id)
 
         # Buscar as mensagens da thread
         msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
 
-        # Buscar a resposta final com a nota incluída
         resposta_final = None
         for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
             if m.role == "assistant" and hasattr(m, "content") and m.content:
                 texto = m.content[0].text.value
-                if re.search(r"nota\s*[:\-]?\s*\d+", texto, re.I):
+
+                # Debug opcional — exibe todas as mensagens da IA
+                # st.write("🧠 RESPOSTA DETECTADA:")
+                # st.code(texto)
+
+                # Verificação mais robusta de resposta final
+                if (
+                    re.search(r"nota\s*[:\-]?\s*\d+(?:[.,]\d+)?", texto, re.I)
+                    and "anamnese" in texto.lower()
+                    and "identificação" in texto.lower()
+                    and "hipótes" in texto.lower()  # cobre "hipóteses diagnósticas"
+                    and "conduta" in texto.lower()
+                ):
                     resposta_final = texto
                     break
 
-        # Exibir e salvar resposta final
+        # Exibir e salvar a resposta final se válida
         if resposta_final:
             with st.chat_message("assistant", avatar="🧑‍⚕️"):
                 st.markdown("### 📄 Resultado Final")
@@ -244,4 +256,4 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
                 salvar_nota_usuario(st.session_state.usuario, nota)
                 st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
         else:
-            st.warning("⚠️ Não foi possível localizar uma resposta com a nota final. Tente novamente ou revise o histórico.")
+            st.warning("⚠️ Não foi possível localizar uma resposta completa com a nota final. Tente novamente ou revise o histórico.")
