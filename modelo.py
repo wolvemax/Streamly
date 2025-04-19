@@ -143,23 +143,35 @@ if st.button("➕ Nova Simulação"):
     resumos_anteriores = obter_ultimos_resumos(st.session_state.usuario, especialidade)
     contexto_resumos = "\n\n".join(resumos_anteriores) if resumos_anteriores else "Nenhum caso anterior registrado."
 
-    prompt_instructions = f"""
-Considere os seguintes casos anteriores usados pelo estudante:
+    prompt_inicial = f"""
+Você é um paciente simulado que será atendido por um estudante de medicina em um ambiente clínico.
+
+Seu papel é representar um paciente realista em primeira pessoa. Inicie a simulação **somente com a identificação e queixa principal (QP)**.
+
+Espere as perguntas do estudante antes de fornecer mais informações (HDA, antecedentes, etc.).
+
+Evite repetir os seguintes casos anteriores do estudante:
 
 {contexto_resumos}
-
-Evite repetir diagnósticos, queixas principais ou condutas clínicas semelhantes.
-Gere um novo caso clínico inédito, compatível com a especialidade: {especialidade}.
 """
-    run = openai.beta.threads.runs.create(
-        thread_id=st.session_state.thread_id,
-        assistant_id=ASSISTANT_PEDIATRIA_ID if especialidade == "Pediatria"
+    assistant_id = (
+        ASSISTANT_PEDIATRIA_ID if especialidade == "Pediatria"
         else ASSISTANT_EMERGENCIAS_ID if especialidade == "Emergências"
-        else ASSISTANT_ID,
-        instructions=prompt_instructions
+        else ASSISTANT_ID
     )
 
-    with st.spinner("Gerando caso..."):
+    openai.beta.threads.messages.create(
+        thread_id=st.session_state.thread_id,
+        role="user",
+        content=prompt_inicial
+    )
+
+    run = openai.beta.threads.runs.create(
+        thread_id=st.session_state.thread_id,
+        assistant_id=assistant_id
+    )
+
+    with st.spinner("Gerando paciente..."):
         while True:
             status = openai.beta.threads.runs.retrieve(thread_id=st.session_state.thread_id, run_id=run.id)
             if status.status == "completed":
@@ -180,7 +192,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if pergunta:
         openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=pergunta)
         run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=ASSISTANT_ID)
-        with st.spinner("Aguarde resposta..."):
+        with st.spinner("Aguardando resposta..."):
             while True:
                 status = openai.beta.threads.runs.retrieve(thread_id=st.session_state.thread_id, run_id=run.id)
                 if status.status == "completed":
@@ -197,7 +209,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             content="Finalizar consulta. Gere o prontuário completo, feedback educacional e nota final no formato: Nota: X/10"
         )
         run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=ASSISTANT_ID)
-        with st.spinner("Gerando feedback..."):
+        with st.spinner("Gerando feedback final..."):
             while True:
                 status = openai.beta.threads.runs.retrieve(thread_id=st.session_state.thread_id, run_id=run.id)
                 if status.status == "completed":
