@@ -144,11 +144,6 @@ if st.button("➕ Nova Simulação"):
     contexto_resumos = "\n\n".join(resumos_anteriores) if resumos_anteriores else "Nenhum caso anterior registrado."
 
     prompt_inicial = f"""
-Você é um paciente simulado que será atendido por um estudante de medicina em um ambiente clínico.
-
-Seu papel é representar um paciente realista em primeira pessoa. Inicie a simulação **somente com a identificação e queixa principal (QP)**.
-
-Espere as perguntas do estudante antes de fornecer mais informações (HDA, antecedentes, etc.).
 
 Evite repetir os seguintes casos anteriores do estudante:
 
