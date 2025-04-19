@@ -188,6 +188,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 
 # ===== FINALIZAR CONSULTA =====
 if st.button("✅ Finalizar Consulta"):
+    # Envia comando de finalização
     openai.beta.threads.messages.create(
         thread_id=st.session_state.thread_id,
         role="user",
@@ -204,15 +205,23 @@ Gere um feedback educacional completo, estruturado por etapas:
 Explique os acertos e as falhas em cada etapa com base na interação entre médico e paciente.
 """)
     )
+
+    # Cria novo run após a mensagem de finalização
     run = openai.beta.threads.runs.create(
         thread_id=st.session_state.thread_id,
         assistant_id=assistant_id
     )
+
+    # Aguarda o processamento
     aguardar_run(st.session_state.thread_id)
-    msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-    for m in msgs:
-        if m.role == "assistant" and hasattr(m, "content") and m.content:
-            resposta = m.content[0].text.value
+
+    # Pega apenas a NOVA resposta que vem DEPOIS da finalização
+    mensagens = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at, reverse=True)
+
+    for msg in mensagens_ordenadas:
+        if msg.role == "assistant" and hasattr(msg, "content") and msg.content:
+            resposta = msg.content[0].text.value
             with st.chat_message("assistant", avatar="🧑‍⚕️"):
                 st.markdown("### 📄 Resultado Final")
                 st.markdown(resposta)
@@ -222,6 +231,5 @@ Explique os acertos e as falhas em cada etapa com base na interação entre méd
             nota = extrair_nota(resposta)
             if nota is not None:
                 salvar_nota_usuario(st.session_state.usuario, nota)
-                st.session_state.media_usuario = calcular_media_usuario(
-                    st.session_state.usuario)
+                st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
             break
