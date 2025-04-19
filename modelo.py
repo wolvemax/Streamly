@@ -203,7 +203,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         openai.beta.threads.messages.create(
             thread_id=st.session_state.thread_id,
             role="user",
-            content=("Gerar prontuário completo, feedback educacional com fundamentos com diretrizes médicas, "
+            content=("Gerar o feedback educacional com fundamentos com diretrizes médicas, "
                      "notas ponderadas por etapa e nota final no formato **Nota: X/10**.")
         )
         run = openai.beta.threads.runs.create(
