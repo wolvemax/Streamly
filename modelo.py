@@ -191,9 +191,17 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta"):
         openai.beta.threads.messages.create(thread_id=st.session_state.thread_id,
             role="user",
-              content=(Você é uma IA avaliadora de simulações clínicas. Analise toda a conversa deste thread (entre o médico e o paciente simulado).
-Gere um feedback educacional completo, estruturado por etapas: 1) Identificação, 2) Anamnese, 3) Hipóteses Diagnósticas, 4) Conduta, 5) Nota Final (Nota: X/10).
-Explique os acertos e as falhas em cada etapa.""")
+              content=("""
+Você é uma IA avaliadora de simulações clínicas. Analise toda a conversa deste thread (entre o médico e o paciente simulado).
+Gere um feedback educacional completo, estruturado por etapas:
+1) Identificação
+2) Anamnese
+3) Hipóteses Diagnósticas
+4) Conduta
+5) Nota Final (Nota: X/10)
+
+Explique os acertos e as falhas em cada etapa com base na interação entre médico e paciente.
+""")
         run=openai.beta.threads.runs.create(thread_id=st.session_state.thread_id,
                                             assistant_id=assistant_id)
         aguardar_run(st.session_state.thread_id)
