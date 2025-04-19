@@ -5,7 +5,7 @@ from datetime import datetime
 import time, re, openai, gspread
 
 # ===== CONFIGURAÇÕES =====
-st.set_page_config(page_title="Bem​‑vindo ao SIMULAMAX – Simulador Médico IA",
+st.set_page_config(page_title="Bem‑vindo ao SIMULAMAX – Simulador Médico IA",
                    page_icon="🧪", layout="wide")
 
 openai.api_key = st.secrets["openai"]["api_key"]
@@ -13,7 +13,7 @@ ASSISTANT_ID           = st.secrets["assistants"]["default"]
 ASSISTANT_PEDIATRIA_ID = st.secrets["assistants"]["pediatria"]
 ASSISTANT_EMERGENCIAS_ID = st.secrets["assistants"]["emergencias"]
 
-# ===== GOOGLE SHEETS =====
+# ===== PLANILHAS SEGURAS =====
 scope = ["https://spreadsheets.google.com/feeds",
          "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(
@@ -21,22 +21,21 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
 client_gspread = gspread.authorize(creds)
 
 try:
-    planilha_logs = client_gspread.open("LogsSimulador")
-    LOG_SHEET = planilha_logs.worksheet("Pagina1")
+    LOG_SHEET = client_gspread.open("LogsSimulador").worksheet("Pagina1")
 except Exception as e:
-    st.error(f"❌ Erro ao acessar planilha LogsSimulador: {e}")
+    st.error(f"❌ Erro ao acessar LogsSimulador: {e}")
     st.stop()
 
 try:
     NOTA_SHEET = client_gspread.open("notasSimulador").sheet1
 except Exception as e:
-    st.error(f"❌ Erro ao acessar planilha notasSimulador: {e}")
+    st.error(f"❌ Erro ao acessar notasSimulador: {e}")
     st.stop()
 
 try:
     LOGIN_SHEET = client_gspread.open("LoginSimulador").sheet1
 except Exception as e:
-    st.error(f"❌ Erro ao acessar planilha LoginSimulador: {e}")
+    st.error(f"❌ Erro ao acessar LoginSimulador: {e}")
     st.stop()
 
 # ===== ESTADO PADRÃO =====
@@ -52,9 +51,10 @@ DEFAULTS = {
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
 
-# ===== FUNÇÕES =====
+# ===== FUNÇÕES AUXILIARES =====
 def remover_acentos(txt):
-    return ''.join(c for c in unicodedata.normalize('NFD', txt) if unicodedata.category(c) != 'Mn')
+    return ''.join(c for c in unicodedata.normalize('NFD', txt)
+                   if unicodedata.category(c) != 'Mn')
 
 def validar_credenciais(user, pwd):
     dados = LOGIN_SHEET.get_all_records()
@@ -82,7 +82,8 @@ def registrar_caso(user, texto, especialidade):
 
 def salvar_nota_usuario(user, nota):
     datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    NOTA_SHEET.append_row([user, str(nota), datahora], value_input_option="USER_ENTERED")
+    NOTA_SHEET.append_row([user, str(nota), datahora],
+                          value_input_option="USER_ENTERED")
 
 def extrair_nota(resp):
     m = re.search(r"nota\s*[:\-]?\s*(\d+(?:[.,]\d+)?)", resp, re.I)
@@ -90,7 +91,8 @@ def extrair_nota(resp):
 
 def obter_ultimos_resumos(user, especialidade, n=10):
     dados = LOG_SHEET.get_all_records()
-    historico = [l for l in dados if l.get("usuario", "").lower() == user.lower()
+    historico = [l for l in dados
+                 if l.get("usuario", "").lower() == user.lower()
                  and l.get("assistente", "").lower() == especialidade.lower()]
     ult = historico[-n:]
     return [l.get("resumo", "")[:250] for l in ult]
@@ -108,7 +110,7 @@ def renderizar_historico():
     for m in sorted(msgs, key=lambda x: x.created_at):
         if not hasattr(m, "content") or not m.content: continue
         conteudo = m.content[0].text.value
-        if any(p in conteudo.lower() for p in ["iniciar nova simula", "evite repetir", "casos anteriores"]): continue
+        if any(p in conteudo.lower() for p in ["iniciar nova simula", "casos anteriores"]): continue
         hora = datetime.fromtimestamp(m.created_at).strftime("%H:%M")
         avatar = "👨‍⚕️" if m.role == "user" else "🧑‍⚕️"
         with st.chat_message(m.role, avatar=avatar):
@@ -144,23 +146,20 @@ assistant_id = {
     "Pediatria": ASSISTANT_PEDIATRIA_ID,
     "Emergências": ASSISTANT_EMERGENCIAS_ID
 }[esp]
-st.session_state.especialidade_atual = esp  # fixa para uso posterior
+st.session_state.especialidade_atual = esp
 
-# ===== CONSULTAS POR ESPECIALIDADE =====
+# ===== CONTAGEM DE CASOS POR ESPECIALIDADE =====
 dados = LOG_SHEET.get_all_records()
 usuario = st.session_state.usuario.lower()
 total_consultas = sum(1 for l in dados if l.get("usuario", "").lower() == usuario)
-total_especialidade = sum(
-    1 for l in dados if l.get("usuario", "").lower() == usuario
-    and l.get("assistente", "").strip().lower() == esp.lower()
-)
+total_especialidade = sum(1 for l in dados if l.get("usuario", "").lower() == usuario
+                          and l.get("assistente", "").strip().lower() == esp.lower())
 
 if total_consultas > 0:
     percentual = (total_especialidade / total_consultas) * 100
     st.success(
         f"📈 Foram realizadas **{total_especialidade}** consultas de **{esp}**, "
-        f"de um total de **{total_consultas}** casos finalizados. "
-        f"Isso representa **{percentual:.1f}%** dos seus atendimentos."
+        f"de um total de **{total_consultas}**. Isso representa **{percentual:.1f}%** dos seus atendimentos."
     )
 else:
     st.info("ℹ️ Nenhuma consulta finalizada ainda para este usuário.")
@@ -169,29 +168,22 @@ else:
 if st.button("➕ Nova Simulação"):
     st.session_state.thread_id = openai.beta.threads.create().id
     st.session_state.consulta_finalizada = False
-
-    prompt_map = {
-        "PSF": "Iniciar nova simulação clínica com paciente simulado. Apenas início da consulta com identificação e queixa principal.",
-        "Pediatria": "Iniciar nova simulação clínica pediátrica com identificação e queixa principal.",
-        "Emergências": "siga as instruçoes configuradas no assistente."
-    }
-    prompt_inicial = prompt_map[esp]
-
     resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
-    contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
-    prompt_completo = f"{prompt_inicial}\n\nCasos anteriores do aluno:\n{contexto}"
+    contexto = "\n".join(resumos) if resumos else ""
 
-    openai.beta.threads.messages.create(
-        thread_id=st.session_state.thread_id,
-        role="user",
-        content=prompt_completo
-    )
+    # Envia apenas o contexto — a IA segue o system prompt configurado no painel
+    if contexto:
+        openai.beta.threads.messages.create(
+            thread_id=st.session_state.thread_id,
+            role="user",
+            content=f"Casos anteriores do aluno:\n{contexto}"
+        )
+
     run = openai.beta.threads.runs.create(
         thread_id=st.session_state.thread_id,
         assistant_id=assistant_id
     )
     aguardar_run(st.session_state.thread_id)
-
     mensagens = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
     for m in mensagens:
         if m.role == "assistant" and hasattr(m, "content") and m.content:
@@ -199,7 +191,7 @@ if st.button("➕ Nova Simulação"):
             break
     st.rerun()
 
-# ===== HISTÓRICO E INTERAÇÃO =====
+# ===== INTERAÇÃO COM A CONSULTA =====
 if st.session_state.historico and not st.session_state.consulta_finalizada:
     st.markdown("### 👤 Identificação do Paciente")
     st.info(st.session_state.historico)
@@ -235,29 +227,28 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         )
         aguardar_run(st.session_state.thread_id)
         msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-resposta_final = None
-for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
-    if m.role == "assistant" and hasattr(m, "content") and m.content:
-        texto = m.content[0].text.value.strip()
 
-        # Critério: deve conter nota ou estrutura de feedback
-        if (
-            re.search(r"nota\s*[:\-]?\s*\d+(?:[.,]\d+)?", texto, re.I) or
-            "feedback educacional" in texto.lower() or
-            "análise da simulação" in texto.lower()
-        ):
-            resposta_final = texto
-            break
+        resposta_final = None
+        for m in sorted(msgs, key=lambda x: getattr(x, 'created_at', 0), reverse=True):
+            if m.role == "assistant" and hasattr(m, "content") and m.content:
+                texto = m.content[0].text.value.strip()
+                if (
+                    re.search(r"nota\\s*[:\\-]?\\s*\\d+(?:[.,]\\d+)?", texto, re.I) or
+                    "feedback educacional" in texto.lower() or
+                    "análise da simulação" in texto.lower()
+                ):
+                    resposta_final = texto
+                    break
 
-if resposta_final:
-    with st.chat_message("assistant", avatar="🧑‍⚕️"):
-        st.markdown("### 📄 Resultado Final")
-        st.markdown(resposta_final)
-    st.session_state.consulta_finalizada = True
-    registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
-    nota = extrair_nota(resposta_final)
-    if nota is not None:
-        salvar_nota_usuario(st.session_state.usuario, nota)
-        st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-else:
-    st.warning("⚠️ Não foi possível encontrar uma resposta final com nota. A IA pode não ter retornado o feedback completo ainda.")
+        if resposta_final:
+            with st.chat_message("assistant", avatar="🧑‍⚕️"):
+                st.markdown("### 📄 Resultado Final")
+                st.markdown(resposta_final)
+            st.session_state.consulta_finalizada = True
+            registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
+            nota = extrair_nota(resposta_final)
+            if nota is not None:
+                salvar_nota_usuario(st.session_state.usuario, nota)
+                st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
+        else:
+            st.warning("⚠️ Não foi possível encontrar uma resposta final com nota. A IA pode não ter retornado o feedback completo ainda.")
