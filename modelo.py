@@ -63,16 +63,22 @@ def calcular_media_usuario(usuario):
         return 0.0
 
 def registrar_caso(usuario, texto):
-    sheet = client_gspread.open("LogsSimulador").worksheet("Pagina1")
-    datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    resumo = texto[:300].replace("\n", " ").strip()
-    assistente = st.session_state.get("especialidade", "desconhecido")
-    sheet.append_row([usuario, datahora, resumo, assistente], value_input_option="USER_ENTERED")
+    try:
+        sheet = client_gspread.open("LogsSimulador").worksheet("Pagina1")
+        datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        resumo = texto[:300].replace("\n", " ").strip()
+        assistente = st.session_state.get("especialidade", "desconhecido")
+        sheet.append_row([usuario, datahora, resumo, assistente], value_input_option="USER_ENTERED")
+    except Exception as e:
+        st.error(f"Erro ao registrar caso: {e}")
 
 def salvar_nota_usuario(usuario, nota):
-    sheet = client_gspread.open("notasSimulador").sheet1
-    datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    sheet.append_row([usuario, str(nota), datahora], value_input_option="USER_ENTERED")
+    try:
+        sheet = client_gspread.open("notasSimulador").sheet1
+        datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sheet.append_row([usuario, str(nota), datahora], value_input_option="USER_ENTERED")
+    except Exception as e:
+        st.error(f"Erro ao salvar nota: {e}")
 
 def extrair_nota(texto):
     try:
@@ -100,12 +106,7 @@ def renderizar_historico():
     mensagens = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
     for msg in sorted(mensagens, key=lambda x: x.created_at):
         conteudo = msg.content[0].text.value.strip()
-        if any(ocultar in conteudo.lower() for ocultar in [
-            "iniciar nova simulação clínica",
-            "evite repetir os seguintes casos",
-            "casos anteriores usados pelo estudante",
-            "considere os seguintes casos"
-        ]):
+        if any(palavra in conteudo.lower() for palavra in ["iniciar nova simula", "evite repetir", "casos anteriores"]):
             continue
         avatar = "👨‍⚕️" if msg.role == "user" else "🧑‍⚕️"
         hora = datetime.fromtimestamp(msg.created_at).strftime("%H:%M")
