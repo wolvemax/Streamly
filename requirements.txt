@@ -7,4 +7,5 @@ scipy
 qdarkstyle
 python-dotenv
 openai
-streamlit-audiorecorder
+streamlit
+streamlit_mic_recorder
