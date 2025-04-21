@@ -56,13 +56,19 @@ for k, v in DEFAULTS.items():
 
 # ========== FUNÇÕES ==========
 def validar_credenciais(user, pwd):
-    dados = get_sheet_data("LoginSimulador", "Sheet1")
-    for linha in dados:
-        usuario_planilha = linha.get("usuario", "").strip().lower()
-        senha_planilha   = linha.get("senha", "").strip()
-        if usuario_planilha == user.lower() and senha_planilha == pwd:
-            return True
+    try:
+        dados = LOGIN_SHEET.get_all_records()
+        st.write("📋 Debug da planilha:")
+        st.json(dados)
+        for linha in dados:
+            usuario = linha.get("usuario", "").strip().lower()
+            senha = linha.get("senha", "").strip()
+            if usuario == user.lower() and senha == pwd:
+                return True
+    except Exception as e:
+        st.error(f"Erro ao ler planilha: {e}")
     return False
+
 
 def contar_casos_usuario(user):
     dados = get_sheet_data("LogsSimulador")
