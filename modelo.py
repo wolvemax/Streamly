@@ -187,10 +187,10 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             except Exception as e:
                 st.error(f"Erro na transcrição: {e}")
 
-    entrada_usuario = st.chat_input(
-        "Digite sua pergunta ou use o microfone",
-        value=st.session_state["transcricao_voz"]
-    )
+entrada_usuario = st.chat_input(
+    "Digite sua pergunta ou use o microfone",
+    value=str(st.session_state["transcricao_voz"]) if st.session_state["transcricao_voz"] else ""
+)
 
     if entrada_usuario:
         st.session_state["transcricao_voz"] = ""
