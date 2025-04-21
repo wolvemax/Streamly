@@ -56,9 +56,11 @@ for k, v in DEFAULTS.items():
 
 # ========== FUNÇÕES ==========
 def validar_credenciais(user, pwd):
-    dados = get_sheet_data("LoginSimulador", "Pagina1")
+    dados = get_sheet_data("LoginSimulador", "Sheet1")
     for linha in dados:
-        if linha.get("usuario", "").strip().lower() == user.lower() and linha.get("senha", "").strip() == pwd:
+        usuario_planilha = linha.get("Usuario", "").strip().lower()
+        senha_planilha   = linha.get("Senha", "").strip()
+        if usuario_planilha == user.lower() and senha_planilha == pwd:
             return True
     return False
 
