@@ -1,16 +1,12 @@
+from datetime import datetime, timezone
+import openai
 import streamlit as st
-from streamlit_mic_recorder import mic_recorder
+import re
+import time
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
-import openai
-import time
-import re
-from datetime import datetime, timezone
-import io
-from openai import OpenAI
 
-
-# ========== CONFIGURAÇÕES ==========
+# ===== CONFIGURAÇÕES =====
 st.set_page_config(page_title="Simulador Médico IA", page_icon="🩺", layout="wide")
 openai.api_key = st.secrets["openai"]["api_key"]
 
@@ -29,21 +25,21 @@ def get_sheet_data(sheet_name, worksheet_name="Pagina1"):
     try:
         sheet = client_gspread.open(sheet_name).worksheet(worksheet_name)
         return sheet.get_all_records()
-    except:
+    except Exception:
         return []
 
 @st.cache_data(ttl=300)
 def get_sheet(sheet_name, worksheet_name="Pagina1"):
     try:
         return client_gspread.open(sheet_name).worksheet(worksheet_name)
-    except:
+    except Exception:
         return None
 
 LOG_SHEET = get_sheet("LogsSimulador")
 NOTA_SHEET = get_sheet("notasSimulador", "Sheet1")
-LOGIN_SHEET = get_sheet("LoginSimulador", "Sheet1")
+LOGIN_SHEET = get_sheet("LoginSimulador", "Pagina1")
 
-# ========== ESTADO ==========
+# ===== ESTADO =====
 DEFAULTS = {
     "logado": False,
     "thread_id": None,
@@ -56,20 +52,13 @@ DEFAULTS = {
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
 
-# ========== FUNÇÕES ==========
-
+# ===== FUNÇÕES =====
 def validar_credenciais(user, pwd):
-    sheet = get_sheet("LoginSimulador", "Sheet1")
-    if not sheet:
-        st.error("⚠️ Erro ao carregar a planilha de login.")
-        return False
-
-    dados = sheet.get_all_records()
+    dados = get_sheet_data("LoginSimulador", "Pagina1")
     for linha in dados:
         if linha.get("usuario", "").strip().lower() == user.lower() and linha.get("senha", "").strip() == pwd:
             return True
     return False
-
 
 def contar_casos_usuario(user):
     dados = get_sheet_data("LogsSimulador")
@@ -83,7 +72,7 @@ def calcular_media_usuario(user):
 def registrar_caso(user, texto, especialidade):
     if LOG_SHEET:
         datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        resumo = texto[:300].replace("\\n", " ").strip()
+        resumo = texto[:300].replace("\n", " ").strip()
         try:
             LOG_SHEET.append_row([user, datahora, resumo, especialidade], value_input_option="USER_ENTERED")
         except Exception as e:
@@ -98,7 +87,7 @@ def salvar_nota_usuario(user, nota):
             st.error(f"Erro ao salvar nota: {e}")
 
 def extrair_nota(resp):
-    m = re.search(r"nota\\s*[:\\-]?\\s*(\\d+(?:[.,]\\d+)?)", resp, re.I)
+    m = re.search(r"nota\s*[:\-]?\s*(\d+(?:[.,]\d+)?)", resp, re.I)
     return float(m.group(1).replace(",", ".")) if m else None
 
 def obter_ultimos_resumos(user, especialidade, n=10):
@@ -131,24 +120,14 @@ def renderizar_historico():
             st.markdown(content)
             st.caption(f"⏰ {hora}")
 
-# ========== LOGIN ==========
+# ===== LOGIN =====
 if not st.session_state.logado:
     st.title("🔐 Simulamax - Login")
-
     with st.form("login"):
         u = st.text_input("Usuário")
         s = st.text_input("Senha", type="password")
-        submit = st.form_submit_button("Entrar")
-
-        if submit:
+        if st.form_submit_button("Entrar"):
             try:
-                # Verifica se a planilha de login está acessível
-                login_sheet = get_sheet("LoginSimulador", "sheet1")  # <- ajuste aqui conforme o nome real da aba
-                if not login_sheet:
-                    st.error("⚠️ Erro ao acessar a planilha LoginSimulador. Verifique se o nome da aba é correto (ex: 'Pagina1') e se o arquivo está compartilhado com o e-mail da API.")
-                    st.stop()
-
-                # Verifica credenciais
                 if validar_credenciais(u, s):
                     st.session_state.usuario = u
                     st.session_state.logado = True
@@ -157,11 +136,10 @@ if not st.session_state.logado:
                 else:
                     st.warning("❌ Usuário ou senha inválidos. Tente novamente.")
             except Exception as e:
-                st.error(f"⚠️ Erro inesperado ao acessar o login: {e}")
+                st.error(f"⚠️ Erro ao carregar a planilha de login: {e}")
     st.stop()
 
-
-# ========== INTERFACE ==========
+# ===== INTERFACE =====
 st.title("🩺 Simulador Médico com IA")
 st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
 col1, col2 = st.columns(2)
@@ -170,7 +148,6 @@ if st.session_state.media_usuario == 0:
     st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
 col2.metric("📊 Média global", st.session_state.media_usuario)
 
-# ========== ESPECIALIDADE ==========
 esp = st.radio("Especialidade:", ["PSF", "Pediatria", "Emergências"],
                index=["PSF", "Pediatria", "Emergências"].index(st.session_state.especialidade_atual)
                if st.session_state.especialidade_atual else 0)
@@ -186,13 +163,13 @@ assistant_id = {
     "Emergências": ASSISTANT_EMERGENCIAS_ID
 }[esp]
 
-# ========== NOVA SIMULAÇÃO ==========
+# ===== NOVA SIMULAÇÃO =====
 if st.button("➕ Nova Simulação"):
     with st.spinner("🔄 Gerando novo caso..."):
         st.session_state.thread_id = openai.beta.threads.create().id
         resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
-        contexto = "\\n".join(resumos) if resumos else "Nenhum caso anterior."
-        prompt = f"Iniciar nova simulação clínica da especialidade {esp}. Casos anteriores:\\n{contexto}"
+        contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
+        prompt = f"Iniciar nova simulação clínica da especialidade {esp}. Casos anteriores:\n{contexto}"
         openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt)
         run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
         aguardar_run(st.session_state.thread_id)
@@ -203,12 +180,11 @@ if st.button("➕ Nova Simulação"):
                 break
     st.rerun()
 
-# ========== HISTÓRICO ==========
+# ===== HISTÓRICO =====
 if st.session_state.historico:
     st.markdown("### 👤 Identificação do Paciente")
     st.info(st.session_state.historico)
 
-# ========== CHAT ==========
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     renderizar_historico()
     text = st.chat_input("Digite sua pergunta ou conduta:")
@@ -218,43 +194,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         aguardar_run(st.session_state.thread_id)
         st.rerun()
 
-# ========== MICROFONE ==========
-audio = mic_recorder(
-    start_prompt="🎤 Clique para gravar",
-    stop_prompt="⏹️ Clique para parar",
-    key="audio_rec"
-)
-
-if audio:
-    st.audio(audio['bytes'], format="audio/wav")
-
-    audio_file = io.BytesIO(audio["bytes"])
-    audio_file.name = "audio.wav"
-
-    with st.spinner("🔍 Transcrevendo áudio com Whisper..."):
-        try:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file
-            )
-            st.success("📝 Transcrição: " + transcript.text)
-
-            # Envia a transcrição para a IA como pergunta
-            openai.beta.threads.messages.create(
-                thread_id=st.session_state.thread_id,
-                role="user",
-                content=transcript.text
-            )
-            run = openai.beta.threads.runs.create(
-                thread_id=st.session_state.thread_id,
-                assistant_id=assistant_id
-            )
-            aguardar_run(st.session_state.thread_id)
-            st.rerun()
-        except Exception as e:
-            st.error(f"Erro ao transcrever: {e}")
-
-# ========== FINALIZAR ==========
+# ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta"):
         with st.spinner("⏳ Gerando prontuário..."):
