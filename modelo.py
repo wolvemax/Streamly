@@ -275,25 +275,23 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             if resposta_final:
                 st.session_state.resposta_final = resposta_final
                 st.session_state.consulta_finalizada = True
-                registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
+                st.session_state.gerando_resposta = False
 
-                nota = extrair_nota(resposta_final)
-                if nota is not None:
-                    salvar_nota_usuario(st.session_state.usuario, nota)
-                    st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-
-                # Exibe imediatamente sem precisar de rerun
-                with st.chat_message("assistant", avatar="🧑‍⚕️"):
-                    st.markdown("### 📄 Resultado Final")
-                    st.markdown(st.session_state.resposta_final)
-
-        st.session_state.gerando_resposta = False
+        st.rerun()
 
 # Exibe novamente o resultado se já tiver sido salvo (ex: após rerun ou atualização)
 if st.session_state.consulta_finalizada and st.session_state.resposta_final:
     with st.chat_message("assistant", avatar="🧑‍⚕️"):
         st.markdown("### 📄 Resultado Final")
         st.markdown(st.session_state.resposta_final)
+
+    registrar_caso(st.session_state.usuario, st.session_state.resposta_final, st.session_state.especialidade_atual)
+
+    nota = extrair_nota(st.session_state.resposta_final)
+    if nota is not None:
+        salvar_nota_usuario(st.session_state.usuario, nota)
+        st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
+
 
 
 
