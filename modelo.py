@@ -286,12 +286,13 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
                     st.markdown("### 📄 Resultado Final")
                     st.markdown(st.session_state.resposta_final)
 
-                st.session_state.gerando_resposta = False
+        st.session_state.gerando_resposta = False
 
 # Exibe novamente o resultado se já tiver sido salvo (ex: após rerun ou atualização)
-if st.session_state.resposta_final:
+if st.session_state.consulta_finalizada and st.session_state.resposta_final:
     with st.chat_message("assistant", avatar="🧑‍⚕️"):
         st.markdown("### 📄 Resultado Final")
         st.markdown(st.session_state.resposta_final)
+
 
 
