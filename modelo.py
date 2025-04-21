@@ -97,7 +97,8 @@ def renderizar_historico():
         return
     msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
     for m in sorted(msgs, key=lambda x: x.created_at):
-        if not m.content:
+        # 🔒 Verificação de segurança para evitar IndexError
+        if not m.content or not m.content[0].text:
             continue
         conteudo = m.content[0].text.value
         if "Iniciar nova simulação clínica" in conteudo:
@@ -107,7 +108,6 @@ def renderizar_historico():
         with st.chat_message(m.role, avatar=avatar):
             st.markdown(conteudo)
             st.caption(f"⏰ {hora}")
-
 
 # ===== LOGIN =====
 if not st.session_state.logado:
