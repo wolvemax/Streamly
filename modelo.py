@@ -219,7 +219,8 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 
 # ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-    with st.spinner("📋 Gerando prontuário completo e avaliando..."):
+    if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta"):
+        with st.spinner("📋 Gerando prontuário completo e avaliando..."):
         # 1. Recupera todo o histórico da thread
         mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
         mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
