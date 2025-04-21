@@ -232,7 +232,7 @@ f st.session_state.thread_id and not st.session_state.consulta_finalizada:
             )
 
             aguardar_run(st.session_state.thread_id)
-            time.sleep(10)  # aguarda estabilização da resposta
+            time.sleep(12)  # aguarda estabilização da resposta
 
             msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
             resposta = ""
