@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
 import av
 import tempfile
 import openai
@@ -186,7 +186,7 @@ class AudioProcessor(AudioProcessorBase):
 
 ctx = webrtc_streamer(
     key="audio_stream_recorder",
-    mode="sendonly",
+    mode=WebRtcMode.SENDONLY,
     audio_receiver_size=256,
     audio_processor_factory=AudioProcessor,
     media_stream_constraints={"audio": True, "video": False},
