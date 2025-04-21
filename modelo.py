@@ -143,7 +143,7 @@ if not st.session_state.logado:
         if submit:
             try:
                 # Verifica se a planilha de login está acessível
-                login_sheet = get_sheet("LoginSimulador", "Pagina1")  # <- ajuste aqui conforme o nome real da aba
+                login_sheet = get_sheet("LoginSimulador", "sheet1")  # <- ajuste aqui conforme o nome real da aba
                 if not login_sheet:
                     st.error("⚠️ Erro ao acessar a planilha LoginSimulador. Verifique se o nome da aba é correto (ex: 'Pagina1') e se o arquivo está compartilhado com o e-mail da API.")
                     st.stop()
