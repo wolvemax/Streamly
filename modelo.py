@@ -36,8 +36,8 @@ DEFAULTS = {
     "run_em_andamento": False,
     "especialidade_atual": "",
     "transcricao_voz": "",
-    "resposta_final": "",  # <- resposta do prontuário final
-    "gerando_resposta": False  # <- controla o estado de carregamento
+    "resposta_final": "",
+    "gerando_resposta": False
 }
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
@@ -146,7 +146,8 @@ if st.button("➕ Nova Simulação"):
     with st.spinner("🔄 Gerando nova simulação clínica..."):
         st.session_state.thread_id = client.beta.threads.create().id
         st.session_state.consulta_finalizada = False
-        st.session_state.resposta_final = ""  # limpa resultado anterior
+        st.session_state.resposta_final = ""
+        st.session_state.historico = ""
 
         resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
         contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
@@ -154,9 +155,7 @@ if st.button("➕ Nova Simulação"):
         prompt_inicial = (
             f"Iniciar nova simulação clínica com paciente simulado da especialidade {esp}.\n"
             "Apresente apenas a Identificação do Paciente e a Queixa Principal (QP) na primeira resposta.\n"
-            "Todas as demais informações (história da doença atual, antecedentes pessoais e familiares, exame físico, exames complementares, etc.) "
-            "devem ser fornecidas apenas quando o médico solicitá-las diretamente.\n"
-            "siga as instruções do assistente\n"
+            "Todas as demais informações devem ser fornecidas apenas quando solicitadas.\n"
             f"Casos anteriores do aluno:\n{contexto}"
         )
 
@@ -172,16 +171,56 @@ if st.button("➕ Nova Simulação"):
         )
         aguardar_run(st.session_state.thread_id)
 
-        # ⚠️ Salva o conteúdo da IA para mostrar imediatamente
         msgs = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
         for m in reversed(msgs):
             if m.role == "assistant" and m.content:
                 st.session_state.historico = m.content[0].text.value
                 break
-
     st.rerun()
 
 # ===== HISTÓRICO DO CASO + VOZ + CHAT =====
+if st.session_state.thread_id and not st.session_state.consulta_finalizada:
+    renderizar_historico()
+
+    st.markdown("### 🎤 Entrada por Voz")
+    audio = mic_recorder(start_prompt="🎙️ Falar", stop_prompt="🛑 Parar", just_once=True, key="mic_gravacao")
+
+    if audio and audio["bytes"]:
+        with st.spinner("🧠 Transcrevendo com Whisper..."):
+            audio_file = io.BytesIO(audio["bytes"])
+            audio_file.name = "voz.wav"
+            try:
+                response = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
+                )
+                st.session_state["transcricao_voz"] = response.text
+            except Exception as e:
+                st.error(f"Erro na transcrição: {e}")
+                st.session_state["transcricao_voz"] = ""
+
+    if st.session_state["transcricao_voz"]:
+        entrada_usuario = st.text_input("🗣️ Confirme ou edite a transcrição:", value=st.session_state["transcricao_voz"])
+        enviar = st.button("Enviar pergunta")
+    else:
+        entrada_usuario = st.chat_input("Digite sua pergunta ou use o microfone")
+        enviar = entrada_usuario is not None
+
+    if enviar and entrada_usuario:
+        st.session_state["transcricao_voz"] = ""
+        client.beta.threads.messages.create(
+            thread_id=st.session_state.thread_id,
+            role="user",
+            content=entrada_usuario
+        )
+        run = client.beta.threads.runs.create(
+            thread_id=st.session_state.thread_id,
+            assistant_id=assistant_id
+        )
+        aguardar_run(st.session_state.thread_id)
+        st.rerun()
+
+# ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta") and not st.session_state.gerando_resposta:
         st.session_state.gerando_resposta = True
@@ -235,7 +274,6 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             if resposta_final:
                 st.session_state.resposta_final = resposta_final
                 st.session_state.consulta_finalizada = True
-
         st.rerun()
 
 # ===== EXIBIR RESULTADO FINAL (após rerun) =====
@@ -250,5 +288,3 @@ if st.session_state.consulta_finalizada and st.session_state.resposta_final:
     if nota is not None:
         salvar_nota_usuario(st.session_state.usuario, nota)
         st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-
-
