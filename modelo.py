@@ -217,7 +217,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
-if st.button("✅ Finalizar Consulta"):
+if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta"):
     # 1. Recupera todo o histórico da thread
     mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
     mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
@@ -234,36 +234,9 @@ if st.button("✅ Finalizar Consulta"):
     # 2. Gera o prompt para a IA
     prompt_resumo = (
         "Com base na consulta, gere um resumo do prontuario completo do paciente\n"
-        "- Com base no historico dessa consulta Feedback educacional do medico baseado em diretrizes clínicas\n"
+        "- Com base no historico dessa consulta Feedback educacional do usuario baseado em diretrizes clínicas\n"
         "- E no final de acordo com o feedback educacional, apresente a nota no formato **Nota: X/10**.\n\n"
         f"Consulta:\n{conteudo_historico}"
-    )
-
-if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta"):
-    # 1. Recupera o histórico e monta o prompt de análise
-    mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-    mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
-
-    historico_completo = []
-    for m in mensagens_ordenadas:
-        if not m.content:
-            continue
-        if m.role == "user":
-            historico_completo.append(f"👨‍⚕️ Pergunta: {m.content[0].text.value}")
-        elif m.role == "assistant":
-            historico_completo.append(f"🧑‍⚕️ Resposta: {m.content[0].text.value}")
-
-    conteudo_historico = "\n\n".join(historico_completo)
-
-    prompt_resumo = (
-        "Com base na consulta abaixo, gere o prontuário clínico completo do paciente, contendo:\n"
-        "- Resumo da anamnese\n"
-        "- Hipótese diagnóstica e diagnósticos diferenciais\n"
-        "- Proposta de conduta médica baseada em diretrizes\n"
-        "- Feedback educacional para o aluno\n"
-        "- No final, escreva a nota no formato **Nota: X/10**.\n\n"
-        f"Consulta completa:\n{conteudo_historico}"
-    )
 
     # 2. Envia o novo prompt para a thread
     client.beta.threads.messages.create(
