@@ -141,38 +141,39 @@ assistant_id = {
 
 # ===== NOVA SIMULAÇÃO =====
 if st.button("➕ Nova Simulação"):
-    st.session_state.thread_id = client.beta.threads.create().id
-    st.session_state.consulta_finalizada = False
+    with st.spinner("🔄 Gerando nova simulação clínica..."):
+        st.session_state.thread_id = client.beta.threads.create().id
+        st.session_state.consulta_finalizada = False
 
-    resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
-    contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
+        resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
+        contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
 
-    prompt_inicial = (
-        f"Iniciar nova simulação clínica com paciente simulado da especialidade {esp}.\n"
-        "Apresente apenas a Identificação do Paciente e a Queixa Principal (QP) na primeira resposta.\n"
-        "Todas as demais informações (história da doença atual, antecedentes pessoais e familiares, exame físico, exames complementares, etc.) "
-        "devem ser fornecidas apenas quando o médico solicitá-las diretamente.\n"
-        "siga as instruçoes do assistente\n"
-        f"Casos anteriores do aluno:\n{contexto}"
-    )
+        prompt_inicial = (
+            f"Iniciar nova simulação clínica com paciente simulado da especialidade {esp}.\n"
+            "Apresente apenas a Identificação do Paciente e a Queixa Principal (QP) na primeira resposta.\n"
+            "Todas as demais informações (história da doença atual, antecedentes pessoais e familiares, exame físico, exames complementares, etc.) "
+            "devem ser fornecidas apenas quando o médico solicitá-las diretamente.\n"
+            "siga as instruções do assistente\n"
+            f"Casos anteriores do aluno:\n{contexto}"
+        )
 
-    client.beta.threads.messages.create(
-        thread_id=st.session_state.thread_id,
-        role="user",
-        content=prompt_inicial
-    )
+        client.beta.threads.messages.create(
+            thread_id=st.session_state.thread_id,
+            role="user",
+            content=prompt_inicial
+        )
 
-    run = client.beta.threads.runs.create(
-        thread_id=st.session_state.thread_id,
-        assistant_id=assistant_id
-    )
-    aguardar_run(st.session_state.thread_id)
-    msgs = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-    for m in msgs:
-        if m.role == "assistant":
-            st.session_state.historico = m.content[0].text.value
-            break
-    st.rerun()
+        run = client.beta.threads.runs.create(
+            thread_id=st.session_state.thread_id,
+            assistant_id=assistant_id
+        )
+        aguardar_run(st.session_state.thread_id)
+        msgs = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+        for m in msgs:
+            if m.role == "assistant":
+                st.session_state.historico = m.content[0].text.value
+                break
+        st.rerun()
 
 # ===== HISTÓRICO DO CASO + VOZ + CHAT =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
@@ -218,7 +219,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 
 # ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-    if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta"):
+    with st.spinner("📋 Gerando prontuário completo e avaliando..."):
         # 1. Recupera todo o histórico da thread
         mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
         mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
