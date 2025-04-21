@@ -183,14 +183,15 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             audio_file.name = "voz.wav"
             try:
                 resposta = openai.Audio.transcribe("whisper-1", audio_file)
-                st.session_state["transcricao_voz"] = resposta["text"]
+                st.session_state["transcricao_voz"] = resposta.get("text", "")
             except Exception as e:
                 st.error(f"Erro na transcrição: {e}")
+                st.session_state["transcricao_voz"] = ""
 
-entrada_usuario = st.chat_input(
-    "Digite sua pergunta ou use o microfone",
-    value=str(st.session_state["transcricao_voz"]) if st.session_state["transcricao_voz"] else ""
-)
+    entrada_usuario = st.chat_input(
+        "Digite sua pergunta ou use o microfone",
+        value=str(st.session_state["transcricao_voz"]) if st.session_state["transcricao_voz"] else ""
+    )
 
     if entrada_usuario:
         st.session_state["transcricao_voz"] = ""
