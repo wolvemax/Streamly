@@ -143,6 +143,7 @@ assistant_id = {
 
 # ===== NOVA SIMULAÇÃO =====
 if st.button("➕ Nova Simulação"):
+    st.session_state.resposta_final = ""  # <- Limpa prontuário antigo
     with st.spinner("🔄 Gerando nova simulação clínica..."):
         st.session_state.thread_id = client.beta.threads.create().id
         st.session_state.consulta_finalizada = False
