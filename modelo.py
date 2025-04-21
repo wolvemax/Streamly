@@ -171,9 +171,11 @@ if st.button("➕ Nova Simulação"):
     st.rerun()
 
 # ===== HISTÓRICO DO CASO + ENTRADA POR VOZ + CHAT =====
+# Render histórico
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     renderizar_historico()
 
+    # Entrada por microfone
     st.markdown("### 🎤 Entrada por Voz")
     audio = mic_recorder(start_prompt="🎙️ Falar", stop_prompt="🛑 Parar", just_once=True, key="mic_gravacao")
 
@@ -188,12 +190,16 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
                 st.error(f"Erro na transcrição: {e}")
                 st.session_state["transcricao_voz"] = ""
 
-    entrada_usuario = st.chat_input(
-        "Digite sua pergunta ou use o microfone",
-        value=str(st.session_state["transcricao_voz"]) if st.session_state["transcricao_voz"] else ""
-    )
+    # Entrada final (voz ou digitação)
+    if st.session_state["transcricao_voz"]:
+        entrada_usuario = st.text_input("🗣️ Confirme ou edite o que foi transcrito:", value=st.session_state["transcricao_voz"])
+        enviar = st.button("Enviar pergunta")
+    else:
+        entrada_usuario = st.chat_input("Digite sua pergunta ou use o microfone")
+        enviar = entrada_usuario is not None
 
-    if entrada_usuario:
+    # Envio da pergunta
+    if enviar and entrada_usuario:
         st.session_state["transcricao_voz"] = ""
         openai.beta.threads.messages.create(
             thread_id=st.session_state.thread_id,
@@ -206,6 +212,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         )
         aguardar_run(st.session_state.thread_id)
         st.rerun()
+
 
 # ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
