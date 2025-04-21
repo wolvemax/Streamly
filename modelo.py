@@ -187,10 +187,13 @@ class AudioProcessor(AudioProcessorBase):
 ctx = webrtc_streamer(
     key="audio",
     mode="sendonly",
-    in_audio=True,
-    audio_processor_factory=AudioProcessor,
+    audio_receiver_size=256,
     media_stream_constraints={"audio": True, "video": False},
+    rtc_configuration={  # Adiciona isso para evitar falhas em ambientes de produção
+        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+    }
 )
+
 
 if ctx.state.playing:
     st.success("🎤 Gravando... pare para transcrever.")
