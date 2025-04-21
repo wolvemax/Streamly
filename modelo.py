@@ -134,14 +134,32 @@ def renderizar_historico():
 # ========== LOGIN ==========
 if not st.session_state.logado:
     st.title("🔐 Simulamax - Login")
+
     with st.form("login"):
         u = st.text_input("Usuário")
         s = st.text_input("Senha", type="password")
-        if st.form_submit_button("Entrar") and validar_credenciais(u, s):
-            st.session_state.usuario = u
-            st.session_state.logado = True
-            st.rerun()
+        submit = st.form_submit_button("Entrar")
+
+        if submit:
+            try:
+                # Verifica se a planilha de login está acessível
+                login_sheet = get_sheet("LoginSimulador", "Pagina1")  # <- ajuste aqui conforme o nome real da aba
+                if not login_sheet:
+                    st.error("⚠️ Erro ao acessar a planilha LoginSimulador. Verifique se o nome da aba é correto (ex: 'Pagina1') e se o arquivo está compartilhado com o e-mail da API.")
+                    st.stop()
+
+                # Verifica credenciais
+                if validar_credenciais(u, s):
+                    st.session_state.usuario = u
+                    st.session_state.logado = True
+                    st.success("✅ Login realizado com sucesso!")
+                    st.rerun()
+                else:
+                    st.warning("❌ Usuário ou senha inválidos. Tente novamente.")
+            except Exception as e:
+                st.error(f"⚠️ Erro inesperado ao acessar o login: {e}")
     st.stop()
+
 
 # ========== INTERFACE ==========
 st.title("🩺 Simulador Médico com IA")
