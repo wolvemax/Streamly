@@ -36,6 +36,8 @@ DEFAULTS = {
     "run_em_andamento": False,
     "especialidade_atual": "",
     "transcricao_voz": ""
+    "resposta_final": "",
+    "gerando_resposta": False
 }
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
@@ -218,67 +220,73 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
-if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta"):
-    with st.spinner("📋 Gerando prontuário completo e avaliando..."):
-        # 1. Recupera histórico
-        mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-        mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
+if st.session_state.thread_id and not st.session_state.consulta_finalizada:
+    if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta") and not st.session_state.gerando_resposta:
+        st.session_state.gerando_resposta = True
 
-        historico_completo = []
-        for m in mensagens_ordenadas:
-            if not m.content:
-                continue
-            if m.role == "user":
-                historico_completo.append(f"👨‍⚕️ Pergunta: {m.content[0].text.value}")
-            elif m.role == "assistant":
-                historico_completo.append(f"🧑‍⚕️ Resposta: {m.content[0].text.value}")
+        with st.spinner("📋 Gerando prontuário completo e avaliando..."):
+            # 1. Recupera todo o histórico da thread
+            mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+            mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
 
-        conteudo_historico = "\n\n".join(historico_completo)
+            historico_completo = []
+            for m in mensagens_ordenadas:
+                if not m.content:
+                    continue
+                if m.role == "user":
+                    historico_completo.append(f"👨‍⚕️ Pergunta: {m.content[0].text.value}")
+                elif m.role == "assistant":
+                    historico_completo.append(f"🧑‍⚕️ Resposta: {m.content[0].text.value}")
 
-        # 2. Prompt final
-        prompt_resumo = (
-            "Com base na conversa abaixo, gere o prontuário clínico completo do paciente, incluindo:\n"
-            "- Resumo da anamnese\n"
-            "- Hipótese diagnóstica e diagnósticos diferenciais\n"
-            "- Conduta médica adequada conforme diretrizes clínicas\n"
-            "- Feedback educacional ao aluno\n"
-            "- Nota final no formato **Nota: X/10**.\n\n"
-            f"{conteudo_historico}"
-        )
+            conteudo_historico = "\n\n".join(historico_completo)
 
-        client.beta.threads.messages.create(
-            thread_id=st.session_state.thread_id,
-            role="user",
-            content=prompt_resumo
-        )
+            prompt_resumo = (
+                "Com base na conversa abaixo, gere o prontuário clínico completo do paciente, incluindo:\n"
+                "- Resumo da anamnese\n"
+                "- Hipótese diagnóstica e diagnósticos diferenciais\n"
+                "- Conduta médica adequada conforme diretrizes clínicas\n"
+                "- Feedback educacional ao aluno\n"
+                "- Nota final no formato **Nota: X/10**.\n\n"
+                f"{conteudo_historico}"
+            )
 
-        run = client.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id,
-            assistant_id=assistant_id
-        )
+            client.beta.threads.messages.create(
+                thread_id=st.session_state.thread_id,
+                role="user",
+                content=prompt_resumo
+            )
 
-        aguardar_run(st.session_state.thread_id)
+            run = client.beta.threads.runs.create(
+                thread_id=st.session_state.thread_id,
+                assistant_id=assistant_id
+            )
+            aguardar_run(st.session_state.thread_id)
 
-        msgs_finais = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-        msgs_finais_ordenadas = sorted(msgs_finais, key=lambda x: x.created_at, reverse=True)
+            msgs_finais = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+            msgs_finais_ordenadas = sorted(msgs_finais, key=lambda x: x.created_at, reverse=True)
 
-        resposta_final = None
-        for m in msgs_finais_ordenadas:
-            if m.role == "assistant" and m.content and "Nota:" in m.content[0].text.value:
-                resposta_final = m.content[0].text.value
-                break
+            resposta_final = None
+            for m in msgs_finais_ordenadas:
+                if m.role == "assistant" and m.content and "Nota:" in m.content[0].text.value:
+                    resposta_final = m.content[0].text.value
+                    break
 
-        if resposta_final:
-            with st.chat_message("assistant", avatar="🧑‍⚕️"):
-                st.markdown("### 📄 Resultado Final")
-                st.markdown(resposta_final)
+            if resposta_final:
+                st.session_state.resposta_final = resposta_final
+                st.session_state.consulta_finalizada = True
+                registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
+                nota = extrair_nota(resposta_final)
+                if nota is not None:
+                    salvar_nota_usuario(st.session_state.usuario, nota)
+                    st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
 
-            st.session_state.consulta_finalizada = True
-            registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
+        st.session_state.gerando_resposta = False
+        st.rerun()
 
-            nota = extrair_nota(resposta_final)
-            if nota is not None:
-                salvar_nota_usuario(st.session_state.usuario, nota)
-                st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
+# Exibe o resultado final após a rerun (fora do botão)
+if st.session_state.resposta_final:
+    with st.chat_message("assistant", avatar="🧑‍⚕️"):
+        st.markdown("### 📄 Resultado Final")
+        st.markdown(st.session_state.resposta_final)
 
 
