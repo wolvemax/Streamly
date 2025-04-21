@@ -220,12 +220,12 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
+# ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta") and not st.session_state.gerando_resposta:
         st.session_state.gerando_resposta = True
 
         with st.spinner("📋 Gerando prontuário completo e avaliando..."):
-            # 1. Recupera todo o histórico da thread
             mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
             mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
 
@@ -275,15 +275,20 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
                 st.session_state.resposta_final = resposta_final
                 st.session_state.consulta_finalizada = True
                 registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
+
                 nota = extrair_nota(resposta_final)
                 if nota is not None:
                     salvar_nota_usuario(st.session_state.usuario, nota)
                     st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
 
-        st.session_state.gerando_resposta = False
-        st.rerun()
+                # Exibe imediatamente sem precisar de rerun
+                with st.chat_message("assistant", avatar="🧑‍⚕️"):
+                    st.markdown("### 📄 Resultado Final")
+                    st.markdown(st.session_state.resposta_final)
 
-# Exibe o resultado final após a rerun (fora do botão)
+                st.session_state.gerando_resposta = False
+
+# Exibe novamente o resultado se já tiver sido salvo (ex: após rerun ou atualização)
 if st.session_state.resposta_final:
     with st.chat_message("assistant", avatar="🧑‍⚕️"):
         st.markdown("### 📄 Resultado Final")
