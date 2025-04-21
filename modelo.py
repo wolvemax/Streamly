@@ -209,12 +209,12 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
-if st.session_state.thread_id and not st.session_state.consulta_finalizada:
+f st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta"):
         with st.spinner("⏳ Gerando prontuário final..."):
             prompt_final = (
                 "⚠️ ATENÇÃO: Finalize agora a simulação clínica. "
-                "Gere feedback educacional de acordo com a condução do usuário na consulta, com justificativas baseadas em diretrizes médicas, "
+                "Gere  feedback educacional de acordo como o usuario conduziu a consulta, e justifique com diretrizes médicas,, "
                 "notas por etapa e a nota final no formato **Nota: X/10**."
             )
 
@@ -232,7 +232,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             )
 
             aguardar_run(st.session_state.thread_id)
-            time.sleep(12)
+            time.sleep(10)  # aguarda estabilização da resposta
 
             msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
             resposta = ""
@@ -248,32 +248,20 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
                     st.markdown("### 📄 Resultado Final")
                     st.markdown(resposta)
 
-                # 🔍 DEBUG antes de salvar o caso
-                st.write("🛠️ **Debug do Salvamento**")
-                st.write("👤 Usuário:", st.session_state.usuario)
-                st.write("📚 Especialidade:", st.session_state.especialidade_atual)
-                st.write("📄 Trecho da resposta:", resposta[:250])
-
                 try:
-                    registrar_caso(
-                        st.session_state.usuario,
-                        resposta,
-                        st.session_state.especialidade_atual
-                    )
+                    registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
                     st.success("✅ Caso salvo na planilha LOG.")
                 except Exception as e:
                     st.error(f"❌ Erro ao salvar no LOG: {e}")
 
                 nota = extrair_nota(resposta)
-                st.write("📊 **Nota extraída:**", nota)
-
                 if nota is not None:
                     try:
                         salvar_nota_usuario(st.session_state.usuario, nota)
                         st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-                        st.success(f"📊 Nota salva com sucesso: {nota}")
+                        st.success(f"📊 Nota extraída e salva com sucesso: {nota}")
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar nota: {e}")
                 else:
-                    st.warning("⚠️ Não foi possível extrair a nota da resposta.")
+                    st.warning("⚠️ Não foi possível extrair a nota do prontuário.")
 
