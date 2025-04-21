@@ -208,31 +208,72 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         aguardar_run(st.session_state.thread_id)
         st.rerun()
 
-# ========== FINALIZAR ==========
+# ===== FINALIZAR CONSULTA =====
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta"):
-        with st.spinner("⏳ Gerando prontuário..."):
-            ts = datetime.now(timezone.utc).timestamp()
-            prompt_final = "Gerar prontuário completo, feedback educacional com base na conduta e dar nota final no formato **Nota: X/10**."
-            openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt_final)
-            run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
+        with st.spinner("⏳ Gerando prontuário final..."):
+            prompt_final = (
+                "⚠️ ATENÇÃO: Finalize agora a simulação clínica. "
+                "Gere feedback educacional de acordo com a condução do usuário na consulta, com justificativas baseadas em diretrizes médicas, "
+                "notas por etapa e a nota final no formato **Nota: X/10**."
+            )
+
+            timestamp_envio = datetime.now(timezone.utc).timestamp()
+
+            openai.beta.threads.messages.create(
+                thread_id=st.session_state.thread_id,
+                role="user",
+                content=prompt_final
+            )
+
+            run = openai.beta.threads.runs.create(
+                thread_id=st.session_state.thread_id,
+                assistant_id=assistant_id
+            )
+
             aguardar_run(st.session_state.thread_id)
-            time.sleep(5)
+            time.sleep(12)
+
             msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+            resposta = ""
             for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
-                if m.role == "assistant" and m.created_at > ts:
-                    resposta = m.content[0].text.value
-                    with st.chat_message("assistant", avatar="🧑‍⚕️"):
-                        st.markdown("### 📄 Resultado Final")
-                        st.markdown(resposta)
-                    registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
-                    nota = extrair_nota(resposta)
-                    if nota is not None:
+                if m.role == "assistant" and m.created_at > timestamp_envio:
+                    if m.content and hasattr(m.content[0], "text"):
+                        resposta = m.content[0].text.value
+                        break
+
+            if resposta:
+                st.session_state.consulta_finalizada = True
+                with st.chat_message("assistant", avatar="🧑‍⚕️"):
+                    st.markdown("### 📄 Resultado Final")
+                    st.markdown(resposta)
+
+                # 🔍 DEBUG antes de salvar o caso
+                st.write("🛠️ **Debug do Salvamento**")
+                st.write("👤 Usuário:", st.session_state.usuario)
+                st.write("📚 Especialidade:", st.session_state.especialidade_atual)
+                st.write("📄 Trecho da resposta:", resposta[:250])
+
+                try:
+                    registrar_caso(
+                        st.session_state.usuario,
+                        resposta,
+                        st.session_state.especialidade_atual
+                    )
+                    st.success("✅ Caso salvo na planilha LOG.")
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar no LOG: {e}")
+
+                nota = extrair_nota(resposta)
+                st.write("📊 **Nota extraída:**", nota)
+
+                if nota is not None:
+                    try:
                         salvar_nota_usuario(st.session_state.usuario, nota)
                         st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-                        st.success(f"✅ Nota salva: {nota}")
-                    else:
-                        st.warning("⚠️ Nota não encontrada.")
-                    st.session_state.consulta_finalizada = True
-                    break
+                        st.success(f"📊 Nota salva com sucesso: {nota}")
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar nota: {e}")
+                else:
+                    st.warning("⚠️ Não foi possível extrair a nota da resposta.")
 
