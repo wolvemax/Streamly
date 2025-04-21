@@ -1,5 +1,6 @@
 streamlit
 streamlit-webrtc
+streamlit_mic_recorder
 openai
 gspread
 oauth2client
