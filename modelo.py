@@ -57,10 +57,12 @@ for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
 
 # ========== FUNÇÕES ==========
+
 def validar_credenciais(user, pwd):
-    dados = get_sheet_data("LoginSimulador", "Sheet1")
+    dados = LOGIN_SHEET.get_all_records()
     for linha in dados:
-        if linha.get("usuario", "").strip().lower() == user.lower() and linha.get("senha", "").strip() == pwd:
+        if (linha.get("usuario", "").strip().lower() == user.lower()
+            and linha.get("senha", "").strip() == pwd):
             return True
     return False
 
