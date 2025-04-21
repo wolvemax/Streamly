@@ -37,9 +37,9 @@ def get_sheet_data(sheet_name, worksheet_name="Pagina1"):
             return []
     return []
 
-LOG_SHEET = get_sheet("LogsSimulador")
-NOTA_SHEET = get_sheet("notasSimulador", "Sheet1")
-LOGIN_SHEET = get_sheet("LoginSimulador", "Pagina1")
+LOG_SHEET = client_gspread.open("LogsSimulador").worksheet("Pagina1")
+NOTA_SHEET = client_gspread.open("notasSimulador").sheet1
+LOGIN_SHEET = client_gspread.open("LoginSimulador").sheet1
 
 # ========== ESTADO ==========
 DEFAULTS = {
