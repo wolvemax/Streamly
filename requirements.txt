@@ -1,11 +1,9 @@
-PyQt5
+streamlit
+streamlit-webrtc
+openai
 gspread
 oauth2client
 numpy
-sounddevice
 scipy
-qdarkstyle
-python-dotenv
-openai
-streamlit
-streamlit_mic_recorder
+pydub
+av
