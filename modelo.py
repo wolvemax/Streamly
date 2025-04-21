@@ -1,98 +1,127 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
-import openai, gspread, re, time, av, tempfile
-import numpy as np
-from datetime import datetime, timezone
-from scipy.io.wavfile import write
+from streamlit_mic_recorder import mic_recorder
 from oauth2client.service_account import ServiceAccountCredentials
+import gspread
+import openai
+import time
+import re
+from datetime import datetime, timezone
 
 # ========== CONFIGURAÇÕES ==========
 st.set_page_config(page_title="Simulador Médico IA", page_icon="🩺", layout="wide")
 openai.api_key = st.secrets["openai"]["api_key"]
 
-# IDs dos Assistentes
-ASSISTANT_ID           = st.secrets["assistants"]["default"]
+# Assistentes
+ASSISTANT_ID = st.secrets["assistants"]["default"]
 ASSISTANT_PEDIATRIA_ID = st.secrets["assistants"]["pediatria"]
 ASSISTANT_EMERGENCIAS_ID = st.secrets["assistants"]["emergencias"]
 
-# Autenticação Google Sheets
+# Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["google_credentials"]), scope)
 client_gspread = gspread.authorize(creds)
 
-# ========== CACHE DAS PLANILHAS ==========
 @st.cache_data(ttl=300)
-def carregar_planilha_login():
+def get_sheet_data(sheet_name, worksheet_name="Pagina1"):
     try:
-        return client_gspread.open("LoginSimulador").sheet1.get_all_records()
-    except Exception as e:
-        st.error(f"Erro ao carregar LoginSimulador: {e}")
+        sheet = client_gspread.open(sheet_name).worksheet(worksheet_name)
+        return sheet.get_all_records()
+    except:
         return []
 
 @st.cache_data(ttl=300)
-def carregar_planilha_log():
+def get_sheet(sheet_name, worksheet_name="Pagina1"):
     try:
-        return client_gspread.open("LogsSimulador").worksheet("Pagina1").get_all_records()
-    except Exception as e:
-        st.error(f"Erro ao carregar LogsSimulador: {e}")
-        return []
+        return client_gspread.open(sheet_name).worksheet(worksheet_name)
+    except:
+        return None
 
-@st.cache_data(ttl=300)
-def carregar_planilha_nota():
-    try:
-        return client_gspread.open("notasSimulador").sheet1.get_all_records()
-    except Exception as e:
-        st.error(f"Erro ao carregar notasSimulador: {e}")
-        return []
+LOG_SHEET = get_sheet("LogsSimulador")
+NOTA_SHEET = get_sheet("notasSimulador", "Sheet1")
+LOGIN_SHEET = get_sheet("LoginSimulador", "Sheet1")
+
+# ========== ESTADO ==========
+DEFAULTS = {
+    "logado": False,
+    "thread_id": None,
+    "historico": "",
+    "consulta_finalizada": False,
+    "media_usuario": 0.0,
+    "especialidade_atual": "",
+    "resposta_final": "",
+}
+for k, v in DEFAULTS.items():
+    st.session_state.setdefault(k, v)
 
 # ========== FUNÇÕES ==========
 def validar_credenciais(user, pwd):
-    dados = carregar_planilha_login()
+    dados = get_sheet_data("LoginSimulador", "Sheet1")
     for linha in dados:
         if linha.get("usuario", "").strip().lower() == user.lower() and linha.get("senha", "").strip() == pwd:
             return True
     return False
 
 def contar_casos_usuario(user):
-    dados = carregar_planilha_log()
+    dados = get_sheet_data("LogsSimulador")
     return sum(1 for l in dados if l.get("usuario", "").lower() == user.lower())
 
 def calcular_media_usuario(user):
-    dados = carregar_planilha_nota()
+    dados = get_sheet_data("notasSimulador", "Sheet1")
     notas = [float(l["nota"]) for l in dados if l.get("usuario", "").lower() == user.lower()]
-    return round(sum(notas)/len(notas), 2) if notas else 0.0
+    return round(sum(notas) / len(notas), 2) if notas else 0.0
 
 def registrar_caso(user, texto, especialidade):
-    try:
-        resumo = texto[:300].replace("\n", " ").strip()
+    if LOG_SHEET:
         datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        plan = client_gspread.open("LogsSimulador").worksheet("Pagina1")
-        plan.append_row([user, datahora, resumo, especialidade], value_input_option="USER_ENTERED")
-        st.success("✅ Caso salvo na planilha LOG.")
-    except Exception as e:
-        st.error(f"❌ Erro ao salvar na LOG: {e}")
+        resumo = texto[:300].replace("\\n", " ").strip()
+        try:
+            LOG_SHEET.append_row([user, datahora, resumo, especialidade], value_input_option="USER_ENTERED")
+        except Exception as e:
+            st.error(f"Erro ao salvar no LOG: {e}")
 
 def salvar_nota_usuario(user, nota):
-    try:
+    if NOTA_SHEET:
         datahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        plan = client_gspread.open("notasSimulador").sheet1
-        plan.append_row([user, str(nota), datahora], value_input_option="USER_ENTERED")
-    except Exception as e:
-        st.error(f"❌ Erro ao salvar nota: {e}")
+        try:
+            NOTA_SHEET.append_row([user, str(nota), datahora], value_input_option="USER_ENTERED")
+        except Exception as e:
+            st.error(f"Erro ao salvar nota: {e}")
 
-DEFAULTS = {
-    "logado": False,
-    "thread_id": None,
-    "historico": "",
-    "consulta_finalizada": False,
-    "especialidade_atual": "",
-    "media_usuario": 0.0,
-    "resposta_final": ""
-}
-for k, v in DEFAULTS.items():
-    st.session_state.setdefault(k, v)
+def extrair_nota(resp):
+    m = re.search(r"nota\\s*[:\\-]?\\s*(\\d+(?:[.,]\\d+)?)", resp, re.I)
+    return float(m.group(1).replace(",", ".")) if m else None
 
-# ===== LOGIN =====
+def obter_ultimos_resumos(user, especialidade, n=10):
+    dados = get_sheet_data("LogsSimulador")
+    historico = [l for l in dados if l.get("usuario", "").lower() == user.lower()
+                 and l.get("especialidade", "").lower() == especialidade.lower()]
+    ult = historico[-n:]
+    return [l.get("resumo", "")[:250] for l in ult]
+
+def aguardar_run(tid):
+    while True:
+        runs = openai.beta.threads.runs.list(thread_id=tid).data
+        if not runs or runs[0].status != "in_progress":
+            break
+        time.sleep(0.8)
+
+def renderizar_historico():
+    if not st.session_state.thread_id:
+        return
+    msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    for m in sorted(msgs, key=lambda x: x.created_at):
+        if not m.content or not hasattr(m.content[0], "text"):
+            continue
+        content = m.content[0].text.value
+        if "Iniciar nova simulação clínica" in content or "Gerar prontuário completo" in content:
+            continue
+        hora = datetime.fromtimestamp(m.created_at).strftime("%H:%M")
+        avatar = "👨‍⚕️" if m.role == "user" else "🧑‍⚕️"
+        with st.chat_message(m.role, avatar=avatar):
+            st.markdown(content)
+            st.caption(f"⏰ {hora}")
+
+# ========== LOGIN ==========
 if not st.session_state.logado:
     st.title("🔐 Simulamax - Login")
     with st.form("login"):
@@ -104,7 +133,7 @@ if not st.session_state.logado:
             st.rerun()
     st.stop()
 
-# ===== DASHBOARD =====
+# ========== INTERFACE ==========
 st.title("🩺 Simulador Médico com IA")
 st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
 col1, col2 = st.columns(2)
@@ -113,7 +142,7 @@ if st.session_state.media_usuario == 0:
     st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
 col2.metric("📊 Média global", st.session_state.media_usuario)
 
-# ===== ESPECIALIDADE =====
+# ========== ESPECIALIDADE ==========
 esp = st.radio("Especialidade:", ["PSF", "Pediatria", "Emergências"],
                index=["PSF", "Pediatria", "Emergências"].index(st.session_state.especialidade_atual)
                if st.session_state.especialidade_atual else 0)
@@ -121,7 +150,6 @@ if esp != st.session_state.especialidade_atual:
     st.session_state.especialidade_atual = esp
     st.session_state.thread_id = None
     st.session_state.consulta_finalizada = False
-    st.session_state.historico = ""
     st.rerun()
 
 assistant_id = {
@@ -130,13 +158,13 @@ assistant_id = {
     "Emergências": ASSISTANT_EMERGENCIAS_ID
 }[esp]
 
-# ===== NOVA SIMULAÇÃO =====
+# ========== NOVA SIMULAÇÃO ==========
 if st.button("➕ Nova Simulação"):
     with st.spinner("🔄 Gerando novo caso..."):
         st.session_state.thread_id = openai.beta.threads.create().id
         resumos = obter_ultimos_resumos(st.session_state.usuario, esp, 10)
-        contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
-        prompt = f"Iniciar nova simulação clínica da especialidade {esp}. Casos anteriores:\n{contexto}"
+        contexto = "\\n".join(resumos) if resumos else "Nenhum caso anterior."
+        prompt = f"Iniciar nova simulação clínica da especialidade {esp}. Casos anteriores:\\n{contexto}"
         openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt)
         run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
         aguardar_run(st.session_state.thread_id)
@@ -145,119 +173,58 @@ if st.button("➕ Nova Simulação"):
             if m.role == "assistant" and m.content and hasattr(m.content[0], "text"):
                 st.session_state.historico = m.content[0].text.value
                 break
-        time.sleep(3)
     st.rerun()
 
-# ===== HISTÓRICO DO CASO =====
-def renderizar_historico():
-    if not st.session_state.thread_id:
-        return
-    msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-    for m in sorted(msgs, key=lambda x: x.created_at):
-        if not m.content or not hasattr(m.content[0], "text"):
-            continue
-        texto = m.content[0].text.value
-        if "Iniciar nova simulação clínica" in texto or "Gerar prontuário completo" in texto:
-            continue
-        hora = datetime.fromtimestamp(m.created_at).strftime("%H:%M")
-        avatar = "👨‍⚕️" if m.role == "user" else "🧑‍⚕️"
-        with st.chat_message(m.role, avatar=avatar):
-            st.markdown(texto)
-            st.caption(f"⏰ {hora}")
-
+# ========== HISTÓRICO ==========
 if st.session_state.historico:
     st.markdown("### 👤 Identificação do Paciente")
     st.info(st.session_state.historico)
 
+# ========== CHAT ==========
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     renderizar_historico()
-    pergunta = st.chat_input("Digite sua pergunta ou conduta:")
-    if pergunta:
-        openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=pergunta)
+    text = st.chat_input("Digite sua pergunta ou conduta:")
+    if text:
+        openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=text)
         run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
         aguardar_run(st.session_state.thread_id)
         st.rerun()
 
-class AudioProcessor(AudioProcessorBase):
-    def __init__(self):
-        self.audio = []
+# ========== MICROFONE ==========
+audio = mic_recorder(start_prompt="🎤 Clique para gravar", stop_prompt="⏹️ Parar e transcrever", key="mic")
+if audio:
+    st.audio(audio['bytes'])
+    transcript = openai.Audio.transcribe("whisper-1", audio['bytes'])
+    st.success("📝 Transcrição: " + transcript["text"])
+    openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=transcript["text"])
+    run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
+    aguardar_run(st.session_state.thread_id)
+    st.rerun()
 
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        pcm = frame.to_ndarray().flatten().astype(np.int16)
-        self.audio.extend(pcm)
-        return frame
-
-    def get_audio(self):
-        return self.audio
-
-ctx = webrtc_streamer(
-    key="audio_transcriber",
-    mode=webrtc_streamer.Mode.SENDONLY,
-    audio_receiver_size=256,
-    media_stream_constraints={"audio": True, "video": False},
-    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-    audio_processor_factory=AudioProcessor,
-)
-
-if ctx.state.playing:
-    st.success("🎤 Gravando... clique em '⏹️ Parar e Transcrever'")
-    if st.button("⏹️ Parar e Transcrever"):
-        audio = ctx.audio_processor.get_audio()
-        if audio:
-            wav_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-            write(wav_temp.name, 16000, np.array(audio))
-            audio_file = open(wav_temp.name, "rb")
-            transcript = openai.Audio.transcribe("whisper-1", audio_file)
-            st.success(f"📝 Transcrição: {transcript['text']}")
-            openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=transcript["text"])
-            run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
-            aguardar_run(st.session_state.thread_id)
-            st.rerun()
-
-# ===== FINALIZAR CONSULTA =====
+# ========== FINALIZAR ==========
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta"):
-        with st.spinner("⏳ Gerando prontuário final..."):
-            timestamp_inicio = datetime.now(timezone.utc).timestamp()
-            prompt = ("Finalizar a simulação. Gerar prontuário completo, feedback com base na conduta do usuário, justificar com diretrizes médicas "
-                      "e dar **Nota: X/10**.")
-            openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt)
+        with st.spinner("⏳ Gerando prontuário..."):
+            ts = datetime.now(timezone.utc).timestamp()
+            prompt_final = "Gerar prontuário completo, feedback educacional com base na conduta e dar nota final no formato **Nota: X/10**."
+            openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt_final)
             run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
             aguardar_run(st.session_state.thread_id)
             time.sleep(5)
-
-            # Captura da resposta correta do assistant
             msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-            resposta = ""
             for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
-                if m.role == "assistant" and m.created_at > timestamp_inicio:
-                    if m.content and hasattr(m.content[0], "text"):
-                        resposta = m.content[0].text.value
-                        break
-
-            if resposta:
-                with st.chat_message("assistant", avatar="🧑‍⚕️"):
-                    st.markdown("### 📄 Resultado Final")
-                    st.markdown(resposta)
-
-                try:
+                if m.role == "assistant" and m.created_at > ts:
+                    resposta = m.content[0].text.value
+                    with st.chat_message("assistant", avatar="🧑‍⚕️"):
+                        st.markdown("### 📄 Resultado Final")
+                        st.markdown(resposta)
                     registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
-                    st.success("✅ Caso salvo na planilha LOG.")
-                except Exception as e:
-                    st.error(f"❌ Erro ao salvar no LOG: {e}")
-
-                nota = extrair_nota(resposta)
-                if nota is not None:
-                    try:
+                    nota = extrair_nota(resposta)
+                    if nota is not None:
                         salvar_nota_usuario(st.session_state.usuario, nota)
                         st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-                        st.success(f"📊 Nota extraída e salva com sucesso: {nota}")
-                    except Exception as e:
-                        st.error(f"❌ Erro ao salvar nota: {e}")
-                else:
-                    st.warning("⚠️ Não foi possível extrair a nota do prontuário.")
-
-                st.session_state.consulta_finalizada = True
-                time.sleep(3)
-                st.rerun()
-
+                        st.success(f"✅ Nota salva: {nota}")
+                    else:
+                        st.warning("⚠️ Nota não encontrada.")
+                    st.session_state.consulta_finalizada = True
+                    break
