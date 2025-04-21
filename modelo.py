@@ -217,30 +217,59 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
-if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-    if st.button("✅ Finalizar Consulta"):
-        client.beta.threads.messages.create(
-            thread_id=st.session_state.thread_id,
-            role="user",
-            content=("Gerar prontuário completo, feedback educacional com fundamentos com diretrizes médicas, "
-                     "notas ponderadas por etapa e nota final no formato **Nota: X/10**.")
-        )
-        run = client.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id,
-            assistant_id=assistant_id
-        )
-        aguardar_run(st.session_state.thread_id)
-        msgs = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-        for m in msgs:
-            if m.role == "assistant":
-                resposta = m.content[0].text.value
-                with st.chat_message("assistant", avatar="🧑‍⚕️"):
-                    st.markdown("### 📄 Resultado Final")
-                    st.markdown(resposta)
-                st.session_state.consulta_finalizada = True
-                registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
-                nota = extrair_nota(resposta)
-                if nota is not None:
-                    salvar_nota_usuario(st.session_state.usuario, nota)
-                    st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-                break
+if st.button("✅ Finalizar Consulta"):
+    # 1. Recupera todo o histórico da thread
+    mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
+
+    historico_completo = []
+    for m in mensagens_ordenadas:
+        if m.role == "user":
+            historico_completo.append(f"👨‍⚕️ Pergunta: {m.content[0].text.value}")
+        elif m.role == "assistant":
+            historico_completo.append(f"🧑‍⚕️ Resposta: {m.content[0].text.value}")
+
+    conteudo_historico = "\n\n".join(historico_completo)
+
+    # 2. Gera o prompt para a IA
+    prompt_resumo = (
+        "Com base na consulta, gere um resumo do prontuario completo do paciente\n"
+        "- Com base no historico dessa consulta Feedback educacional do medico baseado em diretrizes clínicas\n"
+        "- E no final de acordo com o feedback educacional, apresente a nota no formato **Nota: X/10**.\n\n"
+        f"Consulta:\n{conteudo_historico}"
+    )
+
+    # 3. Envia esse prompt como nova mensagem na thread
+    client.beta.threads.messages.create(
+        thread_id=st.session_state.thread_id,
+        role="user",
+        content=prompt_resumo
+    )
+
+    # 4. Gera run da IA
+    run = client.beta.threads.runs.create(
+        thread_id=st.session_state.thread_id,
+        assistant_id=assistant_id
+    )
+
+    aguardar_run(st.session_state.thread_id)
+
+    # 5. Captura a última resposta da IA
+    msgs = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    resposta = None
+    for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
+        if m.role == "assistant" and m.content:
+            resposta = m.content[0].text.value
+            break
+
+    if resposta:
+        with st.chat_message("assistant", avatar="🧑‍⚕️"):
+            st.markdown("### 📄 Resultado Final")
+            st.markdown(resposta)
+
+        st.session_state.consulta_finalizada = True
+        registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
+        nota = extrair_nota(resposta)
+        if nota is not None:
+            salvar_nota_usuario(st.session_state.usuario, nota)
+            st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
