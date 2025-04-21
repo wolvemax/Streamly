@@ -239,7 +239,7 @@ if st.button("✅ Finalizar Consulta"):
         f"Consulta:\n{conteudo_historico}"
     )
 
-if st.button("✅ Finalizar Consulta"):
+if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta"):
     # 1. Recupera o histórico e monta o prompt de análise
     mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
     mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
