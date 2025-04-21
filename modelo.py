@@ -218,10 +218,9 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ===== FINALIZAR CONSULTA =====
-if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-    if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta"):
-        with st.spinner("📋 Gerando prontuário completo e avaliando..."):
-        # 1. Recupera todo o histórico da thread
+if st.button("✅ Finalizar Consulta", key="botao_finalizar_consulta"):
+    with st.spinner("📋 Gerando prontuário completo e avaliando..."):
+        # 1. Recupera histórico
         mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
         mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
 
@@ -236,7 +235,7 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 
         conteudo_historico = "\n\n".join(historico_completo)
 
-        # 2. Gera o prompt para a IA
+        # 2. Prompt final
         prompt_resumo = (
             "Com base na conversa abaixo, gere o prontuário clínico completo do paciente, incluindo:\n"
             "- Resumo da anamnese\n"
@@ -247,14 +246,12 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             f"{conteudo_historico}"
         )
 
-        # 3. Envia o novo prompt para a thread
         client.beta.threads.messages.create(
             thread_id=st.session_state.thread_id,
             role="user",
             content=prompt_resumo
         )
 
-        # 4. Gera nova run da IA
         run = client.beta.threads.runs.create(
             thread_id=st.session_state.thread_id,
             assistant_id=assistant_id
@@ -262,7 +259,6 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 
         aguardar_run(st.session_state.thread_id)
 
-        # 5. Busca a nova resposta da IA contendo a nota
         msgs_finais = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
         msgs_finais_ordenadas = sorted(msgs_finais, key=lambda x: x.created_at, reverse=True)
 
@@ -284,4 +280,5 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
             if nota is not None:
                 salvar_nota_usuario(st.session_state.usuario, nota)
                 st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
+
 
