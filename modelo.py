@@ -35,9 +35,9 @@ DEFAULTS = {
     "media_usuario": 0.0,
     "run_em_andamento": False,
     "especialidade_atual": "",
-    "transcricao_voz": ""
-    "resposta_final": "",
-    "gerando_resposta": False
+    "transcricao_voz": "",
+    "resposta_final": "",  # <- resposta do prontuário final
+    "gerando_resposta": False  # <- controla o estado de carregamento
 }
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
