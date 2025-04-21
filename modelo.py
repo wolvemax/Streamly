@@ -46,16 +46,11 @@ for k, v in DEFAULTS.items():
 
 # ========== FUNÇÕES ==========
 def validar_credenciais(user, pwd):
-    try:
-        dados = LOGIN_SHEET.get_all_records()
-        for linha in dados:
-            if (
-                linha.get("usuario", "").strip().lower() == user.strip().lower()
-                and linha.get("senha", "").strip() == pwd.strip()
-            ):
-                return True
-    except Exception as e:
-        st.error(f"⚠️ Erro ao acessar a planilha de login: {e}")
+    dados = LOGIN_SHEET.get_all_records()
+    for linha in dados:
+        if (linha.get("usuario", "").strip().lower() == user.lower()
+            and linha.get("senha", "").strip() == pwd):
+            return True
     return False
 
 def contar_casos_usuario(user):
