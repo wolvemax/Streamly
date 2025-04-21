@@ -149,10 +149,10 @@ if st.button("➕ Nova Simulação"):
 
     prompt_inicial = (
         f"Iniciar nova simulação clínica com paciente simulado da especialidade {esp}.\n"
-        f"Iniciar nova simulação clínica com paciente simulado da especialidade {esp}.\n"
         "Apresente apenas a Identificação do Paciente e a Queixa Principal (QP) na primeira resposta.\n"
         "Todas as demais informações (história da doença atual, antecedentes pessoais e familiares, exame físico, exames complementares, etc.) "
         "devem ser fornecidas apenas quando o médico solicitá-las diretamente.\n"
+        "siga as instruçoes do assistente\n"
         f"Casos anteriores do aluno:\n{contexto}"
     )
 
