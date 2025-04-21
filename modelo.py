@@ -130,9 +130,12 @@ if not st.session_state.logado:
     with st.form("login"):
         u = st.text_input("Usuário")
         s = st.text_input("Senha", type="password")
-        submit = st.form_submit_button("Entrar")
 
-        if submit:
+        # 🔎 DEBUG - Mostra conteúdo da planilha
+        st.write("📋 Dados recebidos da planilha:")
+        st.json(get_sheet_data("LoginSimulador", "Sheet1"))
+
+        if st.form_submit_button("Entrar"):
             if validar_credenciais(u, s):
                 st.session_state.usuario = u
                 st.session_state.logado = True
@@ -140,6 +143,7 @@ if not st.session_state.logado:
             else:
                 st.warning("⚠️ Usuário ou senha inválidos.")
     st.stop()
+
 
 # ========== INTERFACE ==========
 st.title("🩺 Simulador Médico com IA")
