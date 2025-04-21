@@ -194,23 +194,44 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 audio = mic_recorder(start_prompt="🎤 Clique para gravar", stop_prompt="⏹️ Parar e transcrever", key="mic")
 if audio:
     st.audio(audio['bytes'])
-    from openai import OpenAI
+
+
 client = OpenAI(api_key=st.secrets["openai"]["api_key"])
 
-import io
-audio_file = io.BytesIO(audio["bytes"])
-audio_file.name = "audio.wav"
-
-transcript = client.audio.transcriptions.create(
-    model="whisper-1",
-    file=audio_file
+audio = mic_recorder(
+    start_prompt="🎤 Clique para gravar",
+    stop_prompt="⏹️ Clique para parar",
+    key="audio_rec"
 )
 
-    st.success("📝 Transcrição: " + transcript["text"])
-    openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=transcript["text"])
-    run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
-    aguardar_run(st.session_state.thread_id)
-    st.rerun()
+if audio:
+    st.audio(audio['bytes'], format="audio/wav")
+
+    audio_file = io.BytesIO(audio["bytes"])
+    audio_file.name = "audio.wav"
+
+    with st.spinner("🔍 Transcrevendo áudio com Whisper..."):
+        try:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+            st.success("📝 Transcrição: " + transcript.text)
+
+            # Envia a transcrição para a IA como pergunta
+            openai.beta.threads.messages.create(
+                thread_id=st.session_state.thread_id,
+                role="user",
+                content=transcript.text
+            )
+            run = openai.beta.threads.runs.create(
+                thread_id=st.session_state.thread_id,
+                assistant_id=assistant_id
+            )
+            aguardar_run(st.session_state.thread_id)
+            st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao transcrever: {e}")
 
 # ========== FINALIZAR ==========
 if st.session_state.thread_id and not st.session_state.consulta_finalizada:
