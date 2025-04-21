@@ -6,6 +6,9 @@ import openai
 import time
 import re
 from datetime import datetime, timezone
+import io
+from openai import OpenAI
+
 
 # ========== CONFIGURAÇÕES ==========
 st.set_page_config(page_title="Simulador Médico IA", page_icon="🩺", layout="wide")
@@ -191,13 +194,6 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         st.rerun()
 
 # ========== MICROFONE ==========
-audio = mic_recorder(start_prompt="🎤 Clique para gravar", stop_prompt="⏹️ Parar e transcrever", key="mic")
-if audio:
-    st.audio(audio['bytes'])
-
-
-client = OpenAI(api_key=st.secrets["openai"]["api_key"])
-
 audio = mic_recorder(
     start_prompt="🎤 Clique para gravar",
     stop_prompt="⏹️ Clique para parar",
