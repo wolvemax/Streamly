@@ -194,7 +194,18 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
 audio = mic_recorder(start_prompt="🎤 Clique para gravar", stop_prompt="⏹️ Parar e transcrever", key="mic")
 if audio:
     st.audio(audio['bytes'])
-    transcript = openai.Audio.transcribe("whisper-1", audio['bytes'])
+    from openai import OpenAI
+client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+
+import io
+audio_file = io.BytesIO(audio["bytes"])
+audio_file.name = "audio.wav"
+
+transcript = client.audio.transcriptions.create(
+    model="whisper-1",
+    file=audio_file
+)
+
     st.success("📝 Transcrição: " + transcript["text"])
     openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=transcript["text"])
     run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id=assistant_id)
