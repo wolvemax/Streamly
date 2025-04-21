@@ -90,16 +90,20 @@ def aguardar_run(tid):
         time.sleep(0.8)
 
 def renderizar_historico():
-    if not st.session_state.thread_id: return
-    msgs=openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-    for m in sorted(msgs, key=lambda x:x.created_at):
+    if not st.session_state.thread_id:
+        return
+    msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    for m in sorted(msgs, key=lambda x: x.created_at):
+        if not m.content:
+            continue  # pula mensagens sem conteúdo
         if "Iniciar nova simulação clínica" in m.content[0].text.value:
             continue
-        hora=datetime.fromtimestamp(m.created_at).strftime("%H:%M")
-        avatar="👨‍⚕️" if m.role=="user" else "🧑‍⚕️"
+        hora = datetime.fromtimestamp(m.created_at).strftime("%H:%M")
+        avatar = "👨‍⚕️" if m.role == "user" else "🧑‍⚕️"
         with st.chat_message(m.role, avatar=avatar):
             st.markdown(m.content[0].text.value)
             st.caption(f"⏰ {hora}")
+
 
 # ===== LOGIN =====
 if not st.session_state.logado:
