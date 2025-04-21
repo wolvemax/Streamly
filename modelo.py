@@ -239,14 +239,40 @@ if st.button("✅ Finalizar Consulta"):
         f"Consulta:\n{conteudo_historico}"
     )
 
-    # 3. Envia esse prompt como nova mensagem na thread
+if st.button("✅ Finalizar Consulta"):
+    # 1. Recupera o histórico e monta o prompt de análise
+    mensagens = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    mensagens_ordenadas = sorted(mensagens, key=lambda x: x.created_at)
+
+    historico_completo = []
+    for m in mensagens_ordenadas:
+        if not m.content:
+            continue
+        if m.role == "user":
+            historico_completo.append(f"👨‍⚕️ Pergunta: {m.content[0].text.value}")
+        elif m.role == "assistant":
+            historico_completo.append(f"🧑‍⚕️ Resposta: {m.content[0].text.value}")
+
+    conteudo_historico = "\n\n".join(historico_completo)
+
+    prompt_resumo = (
+        "Com base na consulta abaixo, gere o prontuário clínico completo do paciente, contendo:\n"
+        "- Resumo da anamnese\n"
+        "- Hipótese diagnóstica e diagnósticos diferenciais\n"
+        "- Proposta de conduta médica baseada em diretrizes\n"
+        "- Feedback educacional para o aluno\n"
+        "- No final, escreva a nota no formato **Nota: X/10**.\n\n"
+        f"Consulta completa:\n{conteudo_historico}"
+    )
+
+    # 2. Envia o novo prompt para a thread
     client.beta.threads.messages.create(
         thread_id=st.session_state.thread_id,
         role="user",
         content=prompt_resumo
     )
 
-    # 4. Gera run da IA
+    # 3. Gera nova run da IA
     run = client.beta.threads.runs.create(
         thread_id=st.session_state.thread_id,
         assistant_id=assistant_id
@@ -254,22 +280,25 @@ if st.button("✅ Finalizar Consulta"):
 
     aguardar_run(st.session_state.thread_id)
 
-    # 5. Captura a última resposta da IA
-    msgs = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-    resposta = None
-    for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
-        if m.role == "assistant" and m.content:
-            resposta = m.content[0].text.value
+    # 4. Busca a ÚLTIMA mensagem da IA DEPOIS da execução desse run
+    msgs_finais = client.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
+    msgs_finais_ordenadas = sorted(msgs_finais, key=lambda x: x.created_at, reverse=True)
+
+    resposta_final = None
+    for m in msgs_finais_ordenadas:
+        if m.role == "assistant" and m.content and "Nota:" in m.content[0].text.value:
+            resposta_final = m.content[0].text.value
             break
 
-    if resposta:
+    if resposta_final:
         with st.chat_message("assistant", avatar="🧑‍⚕️"):
             st.markdown("### 📄 Resultado Final")
-            st.markdown(resposta)
+            st.markdown(resposta_final)
 
         st.session_state.consulta_finalizada = True
-        registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
-        nota = extrair_nota(resposta)
+        registrar_caso(st.session_state.usuario, resposta_final, st.session_state.especialidade_atual)
+
+        nota = extrair_nota(resposta_final)
         if nota is not None:
             salvar_nota_usuario(st.session_state.usuario, nota)
             st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
