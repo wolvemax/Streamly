@@ -79,6 +79,10 @@ def obter_dados_usuario(usuario):
     result = supabase.table("logs_simulacoes").select("especialidade, resposta, data_hora").eq("usuario", usuario).order("data_hora", desc=True).execute()
     return result.data
 
+def obter_temas_usados(user, especialidade, n=10):
+    result = supabase.table("logs_simulacoes").select("tema").eq("usuario", user).eq("especialidade", especialidade).order("data_hora", desc=True).limit(n).execute()
+    return [t["tema"] for t in result.data if t.get("tema")]
+
 def extrair_nota(resp):
     padrao_final = re.search(r"(?:nota\s*(?:estimada|final)?\s*[:\-]?\s*)(\d{1,2}(?:[.,]\d+)?)(?:\s*/\s*10)?", resp, re.IGNORECASE)
     if padrao_final:
@@ -108,8 +112,7 @@ def renderizar_historico():
             "Crie um novo caso clínico completo da especialidade",
             "Temas já utilizados",
             "Finalize agora a simulação clínica",
-            "Gere feedback educacional"
-        ]):
+            "Gere feedback educacional"]):
             continue
         hora = datetime.fromtimestamp(m.created_at).strftime("%H:%M")
         avatar = "👨‍⚕️" if m.role == "user" else "🧑‍⚕️"
