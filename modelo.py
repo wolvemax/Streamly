@@ -220,8 +220,8 @@ if st.button("➕ Nova Simulação"):
         st.session_state.historico = ""
         st.session_state.resposta_final = ""
 
-        resumos = obter_ultimos_resumos(st.session_state.usuario, st.session_state.especialidade_atual, 10)
-        contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
+        temas_usados = obter_temas_usados(st.session_state.usuario, st.session_state.especialidade_atual, 10)
+        contexto = "\n".join(temas_usados) if temas_usados else "Nenhum tema anterior."
 
         # Usa a função adaptativa para gerar o prompt
         prompt_inicial = gerar_prompt_por_especialidade(st.session_state.especialidade_atual, contexto)
