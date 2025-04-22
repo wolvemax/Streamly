@@ -199,8 +199,9 @@ if st.button("➕ Nova Simulação"):
         contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
 
         prompt_inicial = (
-            f"Iniciar nova simulação clínica com paciente simulado da especialidade {st.session_state.especialidade_atual}.\n"
+            f"Iniciar nova simulação clínica com paciente simulado da especialidade, siga as instruçoes do assistente {st.session_state.especialidade_atual}.\n"
             f"Evite repetir os temas abaixo já utilizados por este aluno.\n"
+            f"Priorize um tema ainda não explorado, mantendo realismo, estrutura e coerência com a prática médica de emergência. "
             f"Histórico recente:\n{contexto}"
         )
 
