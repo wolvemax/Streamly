@@ -177,6 +177,28 @@ if st.button("📜 Meus últimos 10 casos"):
     else:
         st.info("Nenhum caso anterior encontrado.")
 
+# === FUNÇÃO GERADORA DO PROMPT INICIAL ADAPTATIVO ===
+def gerar_prompt_por_especialidade(especialidade, contexto):
+    if especialidade == "Emergências":
+        return (
+            f"Crie um novo caso clínico completo da especialidade Emergências com base em um dos temas disponíveis no arquivo enviado, evitando os temas já utilizados abaixo. "
+            f"O caso deve seguir a estrutura completa: Identificação, Queixa Principal (QP), HDA, exame físico, exames laboratoriais com valores de referência, e exames complementares quando necessário. "
+            f"\n\nTemas já utilizados:\n{contexto}"
+        )
+    elif especialidade in ["Pediatria", "PSF"]:
+        return (
+            f"Inicie uma nova simulação clínica da especialidade {especialidade}. "
+            f"O caso deve ser apresentado passo a passo, começando apenas com a Identificação e a Queixa Principal (QP). "
+            f"As demais informações (HDA, exame físico, exames, diagnóstico, conduta) devem ser fornecidas somente quando solicitadas. "
+            f"Evite repetir os temas já utilizados pelo estudante listados abaixo.\n\nTemas já utilizados:\n{contexto}"
+        )
+    else:
+        return (
+            f"Inicie uma simulação da especialidade {especialidade}, utilizando temas clínicos relevantes. "
+            f"Se houver arquivos anexados, utilize-os como base para evitar repetições. "
+            f"\n\nTemas já utilizados:\n{contexto}"
+        )
+
 # === NOVA SIMULAÇÃO ===
 if st.button("➕ Nova Simulação"):
     with st.spinner("⏳ Gerando novo caso clínico..."):
@@ -188,19 +210,17 @@ if st.button("➕ Nova Simulação"):
         resumos = obter_ultimos_resumos(st.session_state.usuario, st.session_state.especialidade_atual, 10)
         contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
 
-        prompt_inicial = (
-            f"Iniciar nova simulação clínica com paciente simulado da especialidade, siga as instruçoes do assistente {st.session_state.especialidade_atual}.\n"
-            f"Evite repetir os temas abaixo já utilizados por este aluno.\n"
-            f"Priorize um tema ainda não explorado, mantendo realismo, estrutura e coerência com a prática médica de emergência. "
-            f"Histórico recente:\n{contexto}"
-        )
+        # Usa a função adaptativa para gerar o prompt
+        prompt_inicial = gerar_prompt_por_especialidade(st.session_state.especialidade_atual, contexto)
 
         if caso_similar(prompt_inicial, resumos):
             st.warning("⚠️ Tema semelhante a um caso recente detectado. Regerando caso...")
 
         openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt_inicial)
         run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id={
-            "PSF": ASSISTANT_ID, "Pediatria": ASSISTANT_PEDIATRIA_ID, "Emergências": ASSISTANT_EMERGENCIAS_ID
+            "PSF": ASSISTANT_ID,
+            "Pediatria": ASSISTANT_PEDIATRIA_ID,
+            "Emergências": ASSISTANT_EMERGENCIAS_ID
         }[st.session_state.especialidade_atual])
         aguardar_run(st.session_state.thread_id)
 
