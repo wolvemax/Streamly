@@ -229,7 +229,7 @@ if st.button("➕ Nova Simulação"):
             if m.role == "assistant" and m.content and hasattr(m.content[0], "text"):
                 st.session_state.historico = m.content[0].text.value
                 break
-        time.sleep(1)
+        time.sleep(7)
     st.rerun()
 
 # === EXIBIÇÃO FINAL ===
@@ -252,7 +252,7 @@ if st.session_state.thread_id:
             }[st.session_state.especialidade_atual]
         )
         aguardar_run(st.session_state.thread_id)
-        st.rerun()
+        st.experimental_rerun()
 
     if not st.session_state.consulta_finalizada:
         if st.button("✅ Finalizar Consulta"):
@@ -289,5 +289,5 @@ if st.session_state.thread_id:
                     st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
                     dados_usuario = obter_dados_usuario(st.session_state.usuario)
                     contagem_especialidades = contar_por_especialidade(dados_usuario)
-                    st.rerun()
+                    st.experimental_rerun()
 
