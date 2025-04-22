@@ -41,12 +41,19 @@ def validar_credenciais(user, pwd):
     result = supabase.table("usuarios").select("*").eq("usuario", user).eq("senha", pwd).execute()
     return bool(result.data)
 
-def registrar_caso(user, texto, especialidade):
+def extrair_tema(texto):
+    match = re.search(r"(?:Tema|Assunto|Caso|Paciente)\s*[:\-]?\s*(.+)", texto, re.IGNORECASE)
+    if match:
+        return match.group(1).split("\n")[0].strip()
+    return " ".join(texto.strip().split("\n")[0].split()[:10])
+
+def registrar_caso(user, texto, especialidade, tema):
     nota = extrair_nota(texto)
     datahora = datetime.now().isoformat()
     supabase.table("logs_simulacoes").insert({
         "usuario": user,
         "especialidade": especialidade,
+        "tema": tema,
         "nota": nota,
         "resposta": texto,
         "data_hora": datahora
@@ -73,16 +80,12 @@ def obter_dados_usuario(usuario):
     return result.data
 
 def extrair_nota(resp):
-    # Prioriza "Nota: X/10", "Nota final", ou "Nota estimada"
     padrao_final = re.search(r"(?:nota\s*(?:estimada|final)?\s*[:\-]?\s*)(\d{1,2}(?:[.,]\d+)?)(?:\s*/\s*10)?", resp, re.IGNORECASE)
     if padrao_final:
         return float(padrao_final.group(1).replace(",", "."))
-
-    # Fallback: pega o último número no formato X/10
     padrao_fallback = re.findall(r"\b(\d{1,2}(?:[.,]\d+)?)\s*/\s*10\b", resp)
     if padrao_fallback:
         return float(padrao_fallback[-1].replace(",", "."))
-
     return None
 
 def aguardar_run(tid):
@@ -100,8 +103,6 @@ def renderizar_historico():
         if not m.content or not hasattr(m.content[0], "text"):
             continue
         content_text = m.content[0].text.value.strip()
-
-        # Ignora prompts técnicos
         if any(frase in content_text for frase in [
             "Inicie uma nova simulação clínica da especialidade",
             "Crie um novo caso clínico completo da especialidade",
@@ -110,18 +111,15 @@ def renderizar_historico():
             "Gere feedback educacional"
         ]):
             continue
-
         hora = datetime.fromtimestamp(m.created_at).strftime("%H:%M")
         avatar = "👨‍⚕️" if m.role == "user" else "🧑‍⚕️"
         with st.chat_message(m.role, avatar=avatar):
             st.markdown(content_text)
             st.caption(f"⏰ {hora}")
 
-def obter_ultimos_resumos(user, especialidade, n=10):
-    dados = obter_dados_usuario(user)
-    respostas = [r["resposta"][:20].replace("\n", " ").strip()
-                 for r in dados if r.get("especialidade") == especialidade and r.get("resposta")]
-    return respostas[:n]
+def obter_temas_usados(user, especialidade, n=10):
+    result = supabase.table("logs_simulacoes").select("tema").eq("usuario", user).eq("especialidade", especialidade).order("data_hora", desc=True).limit(n).execute()
+    return [t["tema"] for t in result.data if t.get("tema")]
 
 def caso_similar(novo_prompt, historico, limite_similaridade=0.75):
     for texto_antigo in historico:
@@ -180,7 +178,9 @@ contagem_especialidades = contar_por_especialidade(dados_usuario)
 
 if st.button("📜 Meus últimos 10 casos"):
     st.subheader("📄 Histórico de Casos Recentes")
-    resumos = obter_ultimos_resumos(st.session_state.usuario, st.session_state.especialidade_atual, 10)
+    temas_usados = obter_temas_usados(st.session_state.usuario, st.session_state.especialidade_atual)
+    contexto = "\n".join(temas_usados) if temas_usados else "Nenhum tema anterior."
+    prompt_inicial = gerar_prompt_por_especialidade(st.session_state.especialidade_atual, contexto)
     if resumos:
         for i, r in enumerate(resumos, 1):
             st.markdown(f"**Caso {i}:** {r}")
@@ -299,7 +299,6 @@ if not st.session_state.consulta_finalizada:
             )
             aguardar_run(st.session_state.thread_id)
             time.sleep(15)
-
             msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
             resposta = None
             for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
@@ -330,6 +329,8 @@ if not st.session_state.consulta_finalizada:
                 st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
                 dados_usuario = obter_dados_usuario(st.session_state.usuario)
                 contagem_especialidades = contar_por_especialidade(dados_usuario)
+                tema = extrair_tema(resposta_limpa)
+                registrar_caso(st.session_state.usuario, resposta_limpa, st.session_state.especialidade_atual, tema)
                 st.rerun()
             else:
                 st.error("⚠️ A IA não retornou uma resposta válida. Tente novamente.")
