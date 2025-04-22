@@ -84,12 +84,20 @@ def obter_temas_usados(user, especialidade, n=10):
     return [t["tema"] for t in result.data if t.get("tema")]
 
 def extrair_nota(resp):
-    padrao_final = re.search(r"(?:nota\s*(?:estimada|final)?\s*[:\-]?\s*)(\d{1,2}(?:[.,]\d+)?)(?:\s*/\s*10)?", resp, re.IGNORECASE)
-    if padrao_final:
-        return float(padrao_final.group(1).replace(",", "."))
+    # Expressões que capturam "Nota: X", "Nota final: X", com ou sem "/10"
+    padrao = re.findall(
+        r"(?:nota\s*(?:final|estimada)?\s*[:\-]?\s*)(\d{1,2}(?:[.,]\d+)?)(?:\s*/\s*10)?",
+        resp, re.IGNORECASE
+    )
+
+    if padrao:
+        return float(padrao[-1].replace(",", "."))  # <-- pega a última ocorrência
+
+    # Fallback: números no formato X/10
     padrao_fallback = re.findall(r"\b(\d{1,2}(?:[.,]\d+)?)\s*/\s*10\b", resp)
     if padrao_fallback:
         return float(padrao_fallback[-1].replace(",", "."))
+
     return None
 
 def aguardar_run(tid):
