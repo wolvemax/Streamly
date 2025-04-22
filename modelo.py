@@ -275,20 +275,3 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         aguardar_run(st.session_state.thread_id)
         st.rerun()
 
-
-# === RESUMO E GRÁFICO ===
-st.subheader("📊 Resumo da Especialidade Atual")
-if esp in contagem_especialidades:
-    st.info(f"📌 Você já finalizou **{contagem_especialidades[esp]}** caso(s) da especialidade **{esp}**.")
-
-# === TOGGLE DO GRÁFICO ===
-if "mostrar_grafico" not in st.session_state:
-    st.session_state.mostrar_grafico = False
-
-if st.button("📊 Mostrar/Ocultar Gráfico"):
-    st.session_state.mostrar_grafico = not st.session_state.mostrar_grafico
-
-if st.session_state.mostrar_grafico:
-    st.subheader("📈 Distribuição Geral de Casos por Especialidade")
-    mostrar_grafico(contagem_especialidades)
-
