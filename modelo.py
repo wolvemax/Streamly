@@ -263,7 +263,7 @@ if st.session_state.thread_id:
             }[st.session_state.especialidade_atual]
         )
         aguardar_run(st.session_state.thread_id)
-        st.experimental_rerun()
+        st.rerun()
 
 if not st.session_state.consulta_finalizada:
     if st.button("✅ Finalizar Consulta"):
