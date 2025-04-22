@@ -3,6 +3,9 @@ import unicodedata
 import time, re, openai
 from datetime import datetime, timezone
 from supabase import create_client
+from difflib import SequenceMatcher
+import matplotlib.pyplot as plt
+from collections import defaultdict
 
 # ===== CONFIGURAÇÕES =====
 st.set_page_config(page_title="Bem-vindo ao SIMULAMAX – Simulador Médico IA", page_icon="💕", layout="wide")
@@ -59,10 +62,6 @@ def salvar_nota_usuario(user, nota):
         "data_hora": datahora
     }).execute()
 
-def contar_casos_usuario(user):
-    result = supabase.table("logs_simulacoes").select("id").eq("usuario", user).execute()
-    return len(result.data)
-
 def calcular_media_usuario(user):
     result = supabase.table("notas_finais").select("nota_final").eq("usuario", user).execute()
     notas = [float(n["nota_final"]) for n in result.data if n.get("nota_final") is not None]
@@ -106,6 +105,43 @@ def renderizar_historico():
             st.markdown(content_text)
             st.caption(f"⏰ {hora}")
 
+# === FUNÇÕES DE HISTÓRICO E GRÁFICO ===
+def obter_dados_usuario(usuario):
+    result = supabase.table("logs_simulacoes")\
+        .select("especialidade, resposta, data_hora")\
+        .eq("usuario", usuario).order("data_hora", desc=True).execute()
+    return result.data
+
+def obter_ultimos_resumos(user, especialidade, n=10):
+    dados = obter_dados_usuario(user)
+    respostas = [r["resposta"][:250].replace("\n", " ").strip()
+                 for r in dados if r.get("especialidade") == especialidade and r.get("resposta")]
+    return respostas[:n]
+
+def caso_similar(novo_prompt, historico, limite_similaridade=0.75):
+    for texto_antigo in historico:
+        similaridade = SequenceMatcher(None, novo_prompt.lower(), texto_antigo.lower()).ratio()
+        if similaridade > limite_similaridade:
+            return True
+    return False
+
+def contar_por_especialidade(dados):
+    contagem = defaultdict(int)
+    for r in dados:
+        if r.get("especialidade"):
+            contagem[r["especialidade"]] += 1
+    return dict(contagem)
+
+def mostrar_grafico(contagem):
+    if not contagem:
+        st.info("Sem dados suficientes para exibir o gráfico.")
+        return
+    fig, ax = plt.subplots()
+    ax.bar(contagem.keys(), contagem.values())
+    ax.set_title("Distribuição de Casos por Especialidade")
+    ax.set_ylabel("Quantidade")
+    st.pyplot(fig)
+
 # ===== LOGIN =====
 if not st.session_state.logado:
     st.title("🔐 Simulamax - Simulador Médico – Login")
@@ -123,10 +159,10 @@ if not st.session_state.logado:
     st.stop()
 
 # ===== DASHBOARD =====
-st.title("🦥 Simulador Médico Interativo com IA")
+st.title("🩺 Simulador Médico Interativo com IA")
 st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
 col1, col2 = st.columns(2)
-col1.metric("📋 Casos finalizados", contar_casos_usuario(st.session_state.usuario))
+col1.metric("📋 Casos finalizados", len(obter_dados_usuario(st.session_state.usuario)))
 if st.session_state.media_usuario == 0:
     st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
 col2.metric("📊 Média global", st.session_state.media_usuario)
@@ -143,13 +179,21 @@ if esp != st.session_state.especialidade_atual:
     st.session_state.consulta_finalizada = False
     st.rerun()
 
-assistant_id = {
-    "PSF": ASSISTANT_ID,
-    "Pediatria": ASSISTANT_PEDIATRIA_ID,
-    "Emergências": ASSISTANT_EMERGENCIAS_ID
-}[esp]
+# === COLETA GERAL DO USUÁRIO ===
+dados_usuario = obter_dados_usuario(st.session_state.usuario)
+contagem_especialidades = contar_por_especialidade(dados_usuario)
 
-# ===== NOVA SIMULAÇÃO =====
+# === BOTÃO PARA HISTÓRICO ===
+if st.button("📜 Meus últimos 10 casos"):
+    st.subheader("📄 Histórico de Casos Recentes")
+    resumos = obter_ultimos_resumos(st.session_state.usuario, st.session_state.especialidade_atual, 10)
+    if resumos:
+        for i, r in enumerate(resumos, 1):
+            st.markdown(f"**Caso {i}:** {r}")
+    else:
+        st.info("Nenhum caso anterior encontrado para essa especialidade.")
+
+# === NOVA SIMULAÇÃO ===
 if st.button("➕ Nova Simulação"):
     with st.spinner("⏳ Gerando novo caso clínico..."):
         st.session_state.thread_id = openai.beta.threads.create().id
@@ -157,9 +201,17 @@ if st.button("➕ Nova Simulação"):
         st.session_state.historico = ""
         st.session_state.resposta_final = ""
 
+        resumos = obter_ultimos_resumos(st.session_state.usuario, st.session_state.especialidade_atual, 10)
+        contexto = "\n".join(resumos) if resumos else "Nenhum caso anterior."
+
         prompt_inicial = (
-            f"Iniciar nova simulação clínica com paciente simulado da especialidade apenas identificação e QP {esp}."
+            f"Iniciar nova simulação clínica com paciente simulado da especialidade {st.session_state.especialidade_atual}.\n"
+            f"Evite repetir os temas abaixo já utilizados por este aluno.\n"
+            f"Histórico recente:\n{contexto}"
         )
+
+        if caso_similar(prompt_inicial, resumos):
+            st.warning("⚠️ Tema semelhante a um caso recente detectado. Regerando caso...")
 
         openai.beta.threads.messages.create(
             thread_id=st.session_state.thread_id,
@@ -169,7 +221,11 @@ if st.button("➕ Nova Simulação"):
 
         run = openai.beta.threads.runs.create(
             thread_id=st.session_state.thread_id,
-            assistant_id=assistant_id
+            assistant_id={
+                "PSF": ASSISTANT_ID,
+                "Pediatria": ASSISTANT_PEDIATRIA_ID,
+                "Emergências": ASSISTANT_EMERGENCIAS_ID
+            }[st.session_state.especialidade_atual]
         )
         aguardar_run(st.session_state.thread_id)
 
@@ -181,71 +237,12 @@ if st.button("➕ Nova Simulação"):
         time.sleep(12)
     st.rerun()
 
-# ===== HISTÓRICO DO CASO =====
-if st.session_state.resposta_final:
-    st.markdown("### 📄 Resultado Final")
-    st.markdown(st.session_state.resposta_final)
-elif st.session_state.historico:
-    st.markdown("### 👤 Identificação do Paciente")
-    st.info(st.session_state.historico)
+# === RESUMO DA ESPECIALIDADE ATUAL ===
+st.subheader("📊 Resumo da Especialidade Atual")
+esp = st.session_state.especialidade_atual
+if esp in contagem_especialidades:
+    st.info(f"📌 Você já finalizou **{contagem_especialidades[esp]}** caso(s) da especialidade **{esp}**.")
 
-if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-    renderizar_historico()
-    pergunta = st.chat_input("Digite sua pergunta ou conduta:")
-    if pergunta:
-        openai.beta.threads.messages.create(
-            thread_id=st.session_state.thread_id,
-            role="user",
-            content=pergunta
-        )
-        run = openai.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id,
-            assistant_id=assistant_id
-        )
-        aguardar_run(st.session_state.thread_id)
-        st.rerun()
-
-# ===== FINALIZAR CONSULTA =====
-if st.session_state.thread_id and not st.session_state.consulta_finalizada:
-    if st.button("✅ Finalizar Consulta"):
-        with st.spinner("⏳ Gerando prontuário final..."):
-            prompt_final = (
-                "\u26a0\ufe0f ATENÇÃO: Finalize agora a simulação clínica. "
-                "Gere feedback educacional de acordo com o que o usuário conduziu, justifique com diretrizes médicas "
-                "e forneça notas por etapa, finalizando com **Nota: X/10**."
-            )
-
-            timestamp_envio = datetime.now(timezone.utc).timestamp()
-
-            openai.beta.threads.messages.create(
-                thread_id=st.session_state.thread_id,
-                role="user",
-                content=prompt_final
-            )
-
-            run = openai.beta.threads.runs.create(
-                thread_id=st.session_state.thread_id,
-                assistant_id=assistant_id
-            )
-
-            aguardar_run(st.session_state.thread_id)
-            time.sleep(12)
-
-            msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-            resposta = ""
-            for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
-                if m.role == "assistant" and m.created_at > timestamp_envio:
-                    if m.content and hasattr(m.content[0], "text"):
-                        resposta = m.content[0].text.value
-                        break
-
-            if resposta:
-                st.session_state.consulta_finalizada = True
-                st.session_state.resposta_final = resposta
-                try:
-                    registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
-                    salvar_nota_usuario(st.session_state.usuario, extrair_nota(resposta))
-                    st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-                except Exception as e:
-                    st.error(f"Erro ao salvar: {e}")
-                st.rerun()
+# === GRÁFICO GERAL ===
+st.subheader("📈 Distribuição Geral de Casos por Especialidade")
+mostrar_grafico(contagem_especialidades)
