@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 # ===== CONFIGURAÇÕES =====
-st.set_page_config(page_title="Bem-vindo ao SIMULAMAX – Simulador Médico IA", page_icon="💕", layout="wide")
+st.set_page_config(page_title="Bem-vindo ao SIMULAMAX – Simulador Médico IA", page_icon="🢕", layout="wide")
 
 # Supabase
 url = st.secrets["supabase"]["url"]
@@ -69,16 +69,16 @@ def calcular_media_usuario(user):
     return 0.0
 
 def extrair_nota(resp):
-    padrao1 = re.search(r"nota(?:\s*final)?\s*[:\-]?\s*(\d+(?:[.,]\d+)?)", resp, re.I)
-    if padrao1:
-        return float(padrao1.group(1).replace(",", "."))
-    padrao2 = re.search(r"\b(\d+(?:[.,]\d+)?)(?:\s*/\s*10)?\b", resp)
-    if padrao2:
-        valor = padrao2.group(1).replace(",", ".")
-        try:
-            return float(valor)
-        except:
-            return None
+    # Prioriza "Nota: X/10", "Nota final", ou "Nota estimada"
+    padrao_final = re.search(r"(?:nota\s*(?:estimada|final)?\s*[:\-]?\s*)(\d{1,2}(?:[.,]\d+)?)(?:\s*/\s*10)?", resp, re.IGNORECASE)
+    if padrao_final:
+        return float(padrao_final.group(1).replace(",", "."))
+
+    # Fallback: pega o último número no formato X/10
+    padrao_fallback = re.findall(r"\b(\d{1,2}(?:[.,]\d+)?)\s*/\s*10\b", resp)
+    if padrao_fallback:
+        return float(padrao_fallback[-1].replace(",", "."))
+
     return None
 
 def aguardar_run(tid):
