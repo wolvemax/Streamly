@@ -68,6 +68,10 @@ def calcular_media_usuario(user):
         return float(result.data[0]["media_global"])
     return 0.0
 
+def obter_dados_usuario(usuario):
+    result = supabase.table("logs_simulacoes").select("especialidade, resposta, data_hora").eq("usuario", usuario).order("data_hora", desc=True).execute()
+    return result.data
+
 def extrair_nota(resp):
     # Prioriza "Nota: X/10", "Nota final", ou "Nota estimada"
     padrao_final = re.search(r"(?:nota\s*(?:estimada|final)?\s*[:\-]?\s*)(\d{1,2}(?:[.,]\d+)?)(?:\s*/\s*10)?", resp, re.IGNORECASE)
@@ -112,7 +116,6 @@ def renderizar_historico():
         with st.chat_message(m.role, avatar=avatar):
             st.markdown(content_text)
             st.caption(f"⏰ {hora}")
-
 
 def obter_ultimos_resumos(user, especialidade, n=10):
     dados = obter_dados_usuario(user)
