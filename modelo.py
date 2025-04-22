@@ -274,7 +274,11 @@ if not st.session_state.consulta_finalizada:
                 "e forneça notas por etapa, finalizando com **Nota: X/10**."
             )
             timestamp_envio = datetime.now(timezone.utc).timestamp()
-            openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt_final)
+            openai.beta.threads.messages.create(
+                thread_id=st.session_state.thread_id,
+                role="user",
+                content=prompt_final
+            )
             run = openai.beta.threads.runs.create(
                 thread_id=st.session_state.thread_id,
                 assistant_id={
@@ -285,12 +289,13 @@ if not st.session_state.consulta_finalizada:
             )
             aguardar_run(st.session_state.thread_id)
             time.sleep(15)
+
             msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
-            resposta = ""
+            resposta = None
             for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
                 if m.role == "assistant" and m.created_at > timestamp_envio:
                     if m.content and hasattr(m.content[0], "text"):
-                        resposta = m.content[0].text.value
+                        resposta = m.content[0].text.value.strip()
                         break
 
             if resposta:
@@ -310,13 +315,15 @@ if not st.session_state.consulta_finalizada:
                         resposta_limpa = resposta_limpa.split("Inicie uma nova simulação clínica da especialidade PSF")[1].strip()
                 resposta_limpa = resposta_limpa.split("Temas já utilizados:")[0].strip()
 
-                # Agora sim pode usar:
                 registrar_caso(st.session_state.usuario, resposta_limpa, st.session_state.especialidade_atual)
                 salvar_nota_usuario(st.session_state.usuario, extrair_nota(resposta))
                 st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
                 dados_usuario = obter_dados_usuario(st.session_state.usuario)
                 contagem_especialidades = contar_por_especialidade(dados_usuario)
                 st.rerun()
+            else:
+                st.error("⚠️ A IA não retornou uma resposta válida. Tente novamente.")
+
 
 
 
