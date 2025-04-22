@@ -229,7 +229,7 @@ if st.button("➕ Nova Simulação"):
             if m.role == "assistant" and m.content and hasattr(m.content[0], "text"):
                 st.session_state.historico = m.content[0].text.value
                 break
-        time.sleep(7)
+        time.sleep(10)
     st.rerun()
 
 # === EXIBIÇÃO FINAL ===
@@ -284,7 +284,7 @@ if st.session_state.thread_id:
                     }[st.session_state.especialidade_atual]
                 )
                 aguardar_run(st.session_state.thread_id)
-                time.sleep(2)
+                time.sleep(15)
                 msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
                 resposta = ""
                 for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
@@ -300,6 +300,6 @@ if st.session_state.thread_id:
                     st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
                     dados_usuario = obter_dados_usuario(st.session_state.usuario)
                     contagem_especialidades = contar_por_especialidade(dados_usuario)
-                    st.experimental_rerun()
+                    st.rerun()
 
 
