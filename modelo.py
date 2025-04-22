@@ -95,19 +95,24 @@ def renderizar_historico():
     for m in sorted(msgs, key=lambda x: x.created_at):
         if not m.content or not hasattr(m.content[0], "text"):
             continue
-        content_text = m.content[0].text.value
-        if "Iniciar nova simulação clínica" in content_text:
+        content_text = m.content[0].text.value.strip()
+
+        # Ignora prompts técnicos
+        if any(frase in content_text for frase in [
+            "Inicie uma nova simulação clínica da especialidade",
+            "Crie um novo caso clínico completo da especialidade",
+            "Temas já utilizados",
+            "Finalize agora a simulação clínica",
+            "Gere feedback educacional"
+        ]):
             continue
-        if "Gerar prontuário completo" in content_text:
-            continue
+
         hora = datetime.fromtimestamp(m.created_at).strftime("%H:%M")
         avatar = "👨‍⚕️" if m.role == "user" else "🧑‍⚕️"
         with st.chat_message(m.role, avatar=avatar):
             st.markdown(content_text)
             st.caption(f"⏰ {hora}")
-def obter_dados_usuario(usuario):
-    result = supabase.table("logs_simulacoes").select("especialidade, resposta, data_hora").eq("usuario", usuario).order("data_hora", desc=True).execute()
-    return result.data
+
 
 def obter_ultimos_resumos(user, especialidade, n=10):
     dados = obter_dados_usuario(user)
