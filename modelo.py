@@ -60,7 +60,7 @@ def salvar_media_global(user):
         "usuario": user,
         "media_global": media,
         "data_hora": datetime.now().isoformat()
-    }).execute()
+    }, on_conflict=["usuario"]).execute()
 
 def calcular_media_usuario(user):
     result = supabase.table("notas_finais").select("media_global").eq("usuario", user).execute()
