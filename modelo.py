@@ -295,7 +295,7 @@ if st.session_state.thread_id:
                 if resposta:
                     st.session_state.consulta_finalizada = True
                     st.session_state.resposta_final = resposta
-                    registrar_caso(st.session_state.usuario, resposta, st.session_state.especialidade_atual)
+                    registrar_caso(st.session_state.usuario, resposta_limpa, st.session_state.especialidade_atual)
                     salvar_nota_usuario(st.session_state.usuario, extrair_nota(resposta))
                     st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
                     dados_usuario = obter_dados_usuario(st.session_state.usuario)
