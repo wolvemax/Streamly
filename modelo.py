@@ -273,7 +273,7 @@ if st.session_state.thread_id:
                     }[st.session_state.especialidade_atual]
                 )
                 aguardar_run(st.session_state.thread_id)
-                time.sleep(2)
+                time.sleep(10)
                 msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
                 resposta = ""
                 for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
