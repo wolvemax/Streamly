@@ -127,19 +127,6 @@ def contar_por_especialidade(dados):
             contagem[r["especialidade"]] += 1
     return dict(contagem)
 
-def mostrar_grafico(contagem):
-    if not contagem:
-        st.info("Sem dados suficientes para exibir o gráfico.")
-        return
-    fig, ax = plt.subplots(figsize=(4, 2))  # Tamanho reduzido
-    ax.bar(contagem.keys(), contagem.values(), width=0.4)
-    ax.set_title("Distribuição de Casos por Especialidade")
-    ax.set_ylabel("Quantidade")
-    ax.set_xlabel("Especialidade")
-    plt.tight_layout()  # Evita cortes nas bordas
-    st.pyplot(fig)
-
-
 # ===== LOGIN =====
 if not st.session_state.logado:
     st.title("🔐 Simulamax - Simulador Médico – Login")
