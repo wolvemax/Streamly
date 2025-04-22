@@ -235,7 +235,18 @@ if st.button("➕ Nova Simulação"):
 # === EXIBIÇÃO FINAL ===
 if st.session_state.resposta_final:
     st.markdown("### 📄 Resultado Final")
-    st.markdown(st.session_state.resposta_final)
+    resposta_limpa = st.session_state.resposta_final
+    if st.session_state.especialidade_atual == "Emergências":
+        if "Crie um novo caso clínico completo da especialidade Emergências" in resposta_limpa:
+            resposta_limpa = resposta_limpa.split("Crie um novo caso clínico completo da especialidade Emergências")[1].strip()
+    elif st.session_state.especialidade_atual == "Pediatria":
+        if "Inicie uma nova simulação clínica da especialidade Pediatria" in resposta_limpa:
+            resposta_limpa = resposta_limpa.split("Inicie uma nova simulação clínica da especialidade Pediatria")[1].strip()
+    elif st.session_state.especialidade_atual == "PSF":
+        if "Inicie uma nova simulação clínica da especialidade PSF" in resposta_limpa:
+            resposta_limpa = resposta_limpa.split("Inicie uma nova simulação clínica da especialidade PSF")[1].strip()
+    resposta_limpa = resposta_limpa.split("Temas já utilizados:")[0].strip()
+    st.markdown(resposta_limpa)
 
 # === CHAT INTERATIVO ===
 if st.session_state.thread_id:
@@ -273,7 +284,7 @@ if st.session_state.thread_id:
                     }[st.session_state.especialidade_atual]
                 )
                 aguardar_run(st.session_state.thread_id)
-                time.sleep(12)
+                time.sleep(2)
                 msgs = openai.beta.threads.messages.list(thread_id=st.session_state.thread_id).data
                 resposta = ""
                 for m in sorted(msgs, key=lambda x: x.created_at, reverse=True):
@@ -289,5 +300,6 @@ if st.session_state.thread_id:
                     st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
                     dados_usuario = obter_dados_usuario(st.session_state.usuario)
                     contagem_especialidades = contar_por_especialidade(dados_usuario)
-                    st.rerun()
+                    st.experimental_rerun()
+
 
