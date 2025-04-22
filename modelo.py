@@ -240,7 +240,7 @@ if st.button("➕ Nova Simulação"):
             if m.role == "assistant" and m.content and hasattr(m.content[0], "text"):
                 st.session_state.historico = m.content[0].text.value
                 break
-        time.sleep(10)
+        time.sleep(20)
     st.rerun()
 
 # === EXIBIÇÃO FINAL ===
