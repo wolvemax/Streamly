@@ -1,3 +1,4 @@
 [theme]
 base="light"
-backgroundColor="#8c6666"
+backgroundColor="#e6dddd"
+secondaryBackgroundColor="#d0d8e8"
