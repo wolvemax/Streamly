@@ -109,7 +109,7 @@ def obter_dados_usuario(usuario):
 
 def obter_ultimos_resumos(user, especialidade, n=10):
     dados = obter_dados_usuario(user)
-    respostas = [r["resposta"][:250].replace("\n", " ").strip()
+    respostas = [r["resposta"][:20].replace("\n", " ").strip()
                  for r in dados if r.get("especialidade") == especialidade and r.get("resposta")]
     return respostas[:n]
 
@@ -131,7 +131,7 @@ def mostrar_grafico(contagem):
     if not contagem:
         st.info("Sem dados suficientes para exibir o gráfico.")
         return
-    fig, ax = plt.subplots(figsize=(2, 1))  # Tamanho reduzido
+    fig, ax = plt.subplots(figsize=(4, 2))  # Tamanho reduzido
     ax.bar(contagem.keys(), contagem.values(), width=0.4)
     ax.set_title("Distribuição de Casos por Especialidade")
     ax.set_ylabel("Quantidade")
