@@ -180,15 +180,13 @@ dados_usuario = obter_dados_usuario(st.session_state.usuario)
 contagem_especialidades = contar_por_especialidade(dados_usuario)
 
 if st.button("📜 Meus últimos 10 casos"):
-    st.subheader("📄 Histórico de Casos Recentes")
+    st.subheader("📄 Temas dos Últimos Casos Realizados")
     temas_usados = obter_temas_usados(st.session_state.usuario, st.session_state.especialidade_atual)
-    contexto = "\n".join(temas_usados) if temas_usados else "Nenhum tema anterior."
-    prompt_inicial = gerar_prompt_por_especialidade(st.session_state.especialidade_atual, contexto)
-    if resumos:
-        for i, r in enumerate(resumos, 1):
-            st.markdown(f"**Caso {i}:** {r}")
+    if temas_usados:
+        for i, tema in enumerate(temas_usados, 1):
+            st.markdown(f"**Tema {i}:** {tema}")
     else:
-        st.info("Nenhum caso anterior encontrado.")
+        st.info("Nenhum tema anterior encontrado.")
 
 # === FUNÇÃO GERADORA DO PROMPT INICIAL ADAPTATIVO ===
 def gerar_prompt_por_especialidade(especialidade, contexto):
