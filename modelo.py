@@ -275,15 +275,6 @@ if st.session_state.thread_id and not st.session_state.consulta_finalizada:
         aguardar_run(st.session_state.thread_id)
         st.rerun()
 
-# === RESUMO E GRÁFICO ===
-st.subheader("📊 Resumo da Especialidade Atual")
-if esp in contagem_especialidades:
-    st.info(f"📌 Você já finalizou **{contagem_especialidades[esp]}** caso(s) da especialidade **{esp}**.")
-
-# === RESUMO DA ESPECIALIDADE ATUAL ===
-st.subheader("📊 Resumo da Especialidade Atual")
-if esp in contagem_especialidades:
-    st.info(f"📌 Você já finalizou **{contagem_especialidades[esp]}** caso(s) da especialidade **{esp}**.")
 
 # === RESUMO E GRÁFICO ===
 st.subheader("📊 Resumo da Especialidade Atual")
