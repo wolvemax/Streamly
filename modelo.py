@@ -327,13 +327,13 @@ if not st.session_state.consulta_finalizada:
                         resposta_limpa = resposta_limpa.split("Inicie uma nova simulação clínica da especialidade PSF")[1].strip()
                 resposta_limpa = resposta_limpa.split("Temas já utilizados:")[0].strip()
 
-                registrar_caso(st.session_state.usuario, resposta_limpa, st.session_state.especialidade_atual)
+                tema = extrair_tema(resposta_limpa)
+                registrar_caso(st.session_state.usuario, resposta_limpa, st.session_state.especialidade_atual, tema)
                 salvar_media_global(st.session_state.usuario)
                 st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
                 dados_usuario = obter_dados_usuario(st.session_state.usuario)
                 contagem_especialidades = contar_por_especialidade(dados_usuario)
                 tema = extrair_tema(resposta_limpa)
-                registrar_caso(st.session_state.usuario, resposta_limpa, st.session_state.especialidade_atual, tema)
                 st.rerun()
             else:
                 st.error("⚠️ A IA não retornou uma resposta válida. Tente novamente.")
