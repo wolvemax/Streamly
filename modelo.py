@@ -52,19 +52,21 @@ def registrar_caso(user, texto, especialidade):
         "data_hora": datahora
     }).execute()
 
-def salvar_nota_usuario(user, nota):
-    datahora = datetime.now().isoformat()
-    supabase.table("notas_finais").insert({
+def salvar_media_global(user):
+    result = supabase.table("logs_simulacoes").select("nota").eq("usuario", user).execute()
+    notas = [float(n["nota"]) for n in result.data if n.get("nota") is not None]
+    media = round(sum(notas)/len(notas), 2) if notas else 0.0
+    supabase.table("notas_finais").upsert({
         "usuario": user,
-        "especialidade": st.session_state.especialidade_atual,
-        "nota_final": nota,
-        "data_hora": datahora
+        "media_global": media,
+        "data_hora": datetime.now().isoformat()
     }).execute()
 
 def calcular_media_usuario(user):
-    result = supabase.table("notas_finais").select("nota_final").eq("usuario", user).execute()
-    notas = [float(n["nota_final"]) for n in result.data if n.get("nota_final") is not None]
-    return round(sum(notas)/len(notas), 2) if notas else 0.0
+    result = supabase.table("notas_finais").select("media_global").eq("usuario", user).execute()
+    if result.data and "media_global" in result.data[0]:
+        return float(result.data[0]["media_global"])
+    return 0.0
 
 def extrair_nota(resp):
     padrao1 = re.search(r"nota(?:\s*final)?\s*[:\-]?\s*(\d+(?:[.,]\d+)?)", resp, re.I)
