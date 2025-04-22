@@ -283,7 +283,7 @@ if not st.session_state.consulta_finalizada:
         with st.spinner("⏳ Gerando prontuário final..."):
             prompt_final = (
                 "⚠️ ATENÇÃO: Finalize agora a simulação clínica. "
-                "Gere feedback educacional de acordo com o que o usuário conduziu, justifique com diretrizes médicas "
+                "Gere o tema geral da consulta dessa especialidade na primeira linha, depois gere feedback educacional de acordo com o que o usuário conduziu, justifique com diretrizes médicas "
                 "e forneça notas por etapa, finalizando com **Nota: X/10**."
             )
             timestamp_envio = datetime.now(timezone.utc).timestamp()
