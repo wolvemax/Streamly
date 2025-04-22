@@ -235,7 +235,7 @@ if st.button("➕ Nova Simulação"):
         for tema in temas_usados:
             if tema.lower() in prompt_inicial.lower():
                 st.warning("⚠️ Tema semelhante a um caso recente detectado. Regerando caso...")
-            break
+                break
 
         openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt_inicial)
         run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id={
@@ -322,29 +322,29 @@ if not st.session_state.consulta_finalizada:
                 st.session_state.consulta_finalizada = True
                 st.session_state.resposta_final = resposta
 
-                # === LIMPEZA DA RESPOSTA ===
+    # === LIMPEZA DA RESPOSTA ===
                 resposta_limpa = resposta
                 if st.session_state.especialidade_atual == "Emergências":
-                    if "Crie um novo caso clínico completo da especialidade Emergências" in resposta_limpa:
-                        resposta_limpa = resposta_limpa.split("Crie um novo caso clínico completo da especialidade Emergências")[1].strip()
+                    resposta_limpa = resposta_limpa.split("Crie um novo caso clínico completo da especialidade Emergências")[-1].strip()
                 elif st.session_state.especialidade_atual == "Pediatria":
-                    if "Inicie uma nova simulação clínica da especialidade Pediatria" in resposta_limpa:
-                        resposta_limpa = resposta_limpa.split("Inicie uma nova simulação clínica da especialidade Pediatria")[1].strip()
+                    resposta_limpa = resposta_limpa.split("Inicie uma nova simulação clínica da especialidade Pediatria")[-1].strip()
                 elif st.session_state.especialidade_atual == "PSF":
-                    if "Inicie uma nova simulação clínica da especialidade PSF" in resposta_limpa:
-                        resposta_limpa = resposta_limpa.split("Inicie uma nova simulação clínica da especialidade PSF")[1].strip()
-                resposta_limpa = resposta_limpa.split("Temas já utilizados:")[0].strip()
+                    resposta_limpa = resposta_limpa.split("Inicie uma nova simulação clínica da especialidade PSF")[-1].strip()
 
+                resposta_limpa = resposta_limpa.split("Temas já utilizados:")[0].strip()
+    
                 tema = extrair_tema(resposta_limpa)
-                registrar_caso(st.session_state.usuario, resposta_limpa, st.session_state.especialidade_atual, tema)
+
+                registrar_caso(
+                    st.session_state.usuario,
+                    resposta_limpa,
+                    st.session_state.especialidade_atual,
+                    tema
+                )
+
                 salvar_media_global(st.session_state.usuario)
                 st.session_state.media_usuario = calcular_media_usuario(st.session_state.usuario)
-                dados_usuario = obter_dados_usuario(st.session_state.usuario)
-                contagem_especialidades = contar_por_especialidade(dados_usuario)
-                tema = extrair_tema(resposta_limpa)
                 st.rerun()
-            else:
-                st.error("⚠️ A IA não retornou uma resposta válida. Tente novamente.")
 
 
 
