@@ -232,8 +232,10 @@ if st.button("➕ Nova Simulação"):
         # Usa a função adaptativa para gerar o prompt
         prompt_inicial = gerar_prompt_por_especialidade(st.session_state.especialidade_atual, contexto)
 
-        if caso_similar(prompt_inicial, temas_usados):
-            st.warning("⚠️ Tema semelhante a um caso recente detectado. Regerando caso...")
+        for tema in temas_usados:
+            if tema.lower() in prompt_inicial.lower():
+                st.warning("⚠️ Tema semelhante a um caso recente detectado. Regerando caso...")
+            break
 
         openai.beta.threads.messages.create(thread_id=st.session_state.thread_id, role="user", content=prompt_inicial)
         run = openai.beta.threads.runs.create(thread_id=st.session_state.thread_id, assistant_id={
