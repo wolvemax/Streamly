@@ -131,7 +131,7 @@ def mostrar_grafico(contagem):
     if not contagem:
         st.info("Sem dados suficientes para exibir o gráfico.")
         return
-    fig, ax = plt.subplots(figsize=(5, 3))  # Tamanho reduzido
+    fig, ax = plt.subplots(figsize=(2, 1))  # Tamanho reduzido
     ax.bar(contagem.keys(), contagem.values(), width=0.4)
     ax.set_title("Distribuição de Casos por Especialidade")
     ax.set_ylabel("Quantidade")
