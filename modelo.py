@@ -131,11 +131,14 @@ def mostrar_grafico(contagem):
     if not contagem:
         st.info("Sem dados suficientes para exibir o gráfico.")
         return
-    fig, ax = plt.subplots()
-    ax.bar(contagem.keys(), contagem.values())
+    fig, ax = plt.subplots(figsize=(5, 3))  # Tamanho reduzido
+    ax.bar(contagem.keys(), contagem.values(), width=0.4)
     ax.set_title("Distribuição de Casos por Especialidade")
     ax.set_ylabel("Quantidade")
+    ax.set_xlabel("Especialidade")
+    plt.tight_layout()  # Evita cortes nas bordas
     st.pyplot(fig)
+
 
 # ===== LOGIN =====
 if not st.session_state.logado:
@@ -277,6 +280,24 @@ st.subheader("📊 Resumo da Especialidade Atual")
 if esp in contagem_especialidades:
     st.info(f"📌 Você já finalizou **{contagem_especialidades[esp]}** caso(s) da especialidade **{esp}**.")
 
-st.subheader("📈 Distribuição Geral de Casos por Especialidade")
-mostrar_grafico(contagem_especialidades)
+# === RESUMO DA ESPECIALIDADE ATUAL ===
+st.subheader("📊 Resumo da Especialidade Atual")
+if esp in contagem_especialidades:
+    st.info(f"📌 Você já finalizou **{contagem_especialidades[esp]}** caso(s) da especialidade **{esp}**.")
+
+# === RESUMO E GRÁFICO ===
+st.subheader("📊 Resumo da Especialidade Atual")
+if esp in contagem_especialidades:
+    st.info(f"📌 Você já finalizou **{contagem_especialidades[esp]}** caso(s) da especialidade **{esp}**.")
+
+# === TOGGLE DO GRÁFICO ===
+if "mostrar_grafico" not in st.session_state:
+    st.session_state.mostrar_grafico = False
+
+if st.button("📊 Mostrar/Ocultar Gráfico"):
+    st.session_state.mostrar_grafico = not st.session_state.mostrar_grafico
+
+if st.session_state.mostrar_grafico:
+    st.subheader("📈 Distribuição Geral de Casos por Especialidade")
+    mostrar_grafico(contagem_especialidades)
 
